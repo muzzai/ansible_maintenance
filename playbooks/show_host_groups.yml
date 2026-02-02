@@ -1,18 +1,18 @@
 ---
 - name: Show All Host Groups
-  hosts: all
+  hosts: monitoring_hosts
   gather_facts: no
   
   tasks:
     - name: Display all groups for each host
       ansible.builtin.debug:
-        msg: "Host '{{ inventory_hostname }}' belongs to groups: {{ group_names }}"
+        msg: "Host '{{ inventory_hostname }}' region: {{ hostvars[inventory_hostname].get('region', 'Unknown') }} instance_id: {{ hostvars[inventory_hostname].get('ec2_instance_id', 'N/A') }}"
 
-    - name: Display summary of all groups and their members
-      ansible.builtin.debug:
-        msg: |
-          Group: {{ item.key }}
-          Members: {{ item.value | join(', ') }}
-      loop: "{{ groups | dict2items }}"
-      run_once: yes
-      delegate_to: localhost
+    # - name: Display summary of all groups and their members
+    #   ansible.builtin.debug:
+    #     msg: |
+    #       Group: {{ item.key }}
+    #       Members: {{ item.value | join(', ') }}
+    #   loop: "{{ groups | dict2items }}"
+    #   run_once: yes
+    #   delegate_to: localhost
