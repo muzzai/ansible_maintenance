@@ -1,0 +1,10 @@
+---
+# Ansible-lint configuration file
+# See https://ansible.readthedocs.io/projects/lint/configuring/
+
+profile: basic
+
+use_default_rules: true
+skip_list:
+  - experimental # Skip experimental rules
+  - no-changed-when # Skip rules about changed_when usage

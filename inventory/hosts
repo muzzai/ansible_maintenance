@@ -1,0 +1,6 @@
+[local]
+localhost ansible_connection=local
+
+[aws]
+# Add your EC2 instances here
+# example-server ansible_host=10.0.0.1
