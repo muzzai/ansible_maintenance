@@ -1,0 +1,41 @@
+---
+- name: Reboot EC2 instances in monitoring_hosts group
+  hosts: monitoring_hosts
+  gather_facts: false
+
+  tasks:
+    - name: Stop EC2 instances
+      amazon.aws.ec2_instance:
+        instance_ids: "{{ hostvars[inventory_hostname]['instance_id'] }}"
+        state: stopped
+        region: "{{ hostvars[inventory_hostname]['placement']['region'] }}"
+      register: stopped_instances
+      delegate_to: localhost
+
+    - name: Wait for instances to stop
+      amazon.aws.ec2_instance_info:
+        instance_ids: "{{ hostvars[inventory_hostname]['instance_id'] }}"
+        region: "{{ hostvars[inventory_hostname]['placement']['region'] }}"
+      register: instance_info
+      until: instance_info.instances[0].state.name == "stopped"
+      retries: 10
+      delay: 10
+      delegate_to: localhost
+
+    - name: Start EC2 instances
+      amazon.aws.ec2_instance:
+        instance_ids: "{{ hostvars[inventory_hostname]['instance_id'] }}"
+        state: running
+        region: "{{ hostvars[inventory_hostname]['placement']['region'] }}"
+      register: started_instances
+      delegate_to: localhost
+
+    - name: Wait for instances to be running
+      amazon.aws.ec2_instance_info:
+        instance_ids: "{{ hostvars[inventory_hostname]['instance_id'] }}"
+        region: "{{ hostvars[inventory_hostname]['placement']['region'] }}"
+      register: instance_info
+      until: instance_info.instances[0].state.name == "running"
+      retries: 10
+      delay: 10
+      delegate_to: localhost
