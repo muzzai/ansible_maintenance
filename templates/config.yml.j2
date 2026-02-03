@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 60s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+remote_write:
+  - url: https://push.alloysoftware.us/insert/0/prometheus
+
+scrape_configs:
+- job_name: 'windows_exporter'
+  ec2_sd_configs:
+    - region: {{ aws_region }}
+      port: 9182
+  relabel_configs:
+    - source_labels: [__meta_ec2_private_ip]
+      target_label: __address__
+      replacement: '${1}:9182'
+    - source_labels: [__meta_ec2_tag_Name]
+      regex: '.*\(([^)]+)\)\s*$|(.+)'
+      target_label: instance
+      replacement: '${1}${2}'
+    - source_labels: [__meta_ec2_private_ip]
+      target_label: private_ip
+
+- job_name: 'monitoring_node_exporter'
+  static_configs:
+    - targets:
+        - 'localhost:9100'
+
+  relabel_configs:
+    - target_label: instance
+      replacement: '{{ aws_region }}-exporter'

@@ -1,0 +1,70 @@
+service:
+  log_level: err
+  parsers_file: /etc/fluent-bit/parsers.conf
+  plugins_file: /etc/fluent-bit/plugins.conf
+  http_server: on
+  http_listen: 0.0.0.0
+  http_port: 2020
+  storage.path: /var/lib/fluent-bit
+  storage.sync: normal
+  storage.checksum: off
+  storage.backlog.mem_limit: 256MB # ↑ raise to exceed input buffers
+  storage.pause_on_chunks_overlimit: on # ← prevent hot loops when full
+  storage.metrics: on
+
+pipeline:
+  inputs:
+    {% for input in inputs %}
+    - name: tail
+      ignore_older: 48h
+      tag: iis.logs
+      path: "/mnt/{{ input }}/W3SVC*/*.log"
+      parser: iis_parser
+      db: "/var/lib/fluent-bit/iis-all.db"
+      db.sync: normal
+      storage.type: filesystem
+      mem_buf_limit: 64MB
+      inotify_watcher: false
+      read_from_head: false
+      buffer_chunk_size: 128KB
+      buffer_max_size: 256KB
+    {% endfor %}
+  filters:
+    - name: lua
+      match: iis.logs
+      script: append_time_corrected.lua
+      call: append_time
+
+    - name: modify
+      match: iis.logs
+      rename:
+        - user_agent cs_user_agent
+        - referer cs_referer
+        - s_ip server_ip
+        - c_ip client_ip
+        - cs_method http_method
+        - cs_uri_stem uri_path
+        - cs_uri_query query_string
+
+  outputs:
+    - name: http
+      match: iis.logs
+      host: logs.alloysoftware.us
+      port: 80
+      uri: /insert/jsonline?_msg_field=uri_path&_time_field=@timestamp
+      format: json_lines
+      compress: gzip
+      net.connect_timeout: 10
+      net.keepalive: on
+      net.keepalive_idle_timeout: 30
+      retry_limit: false
+
+parsers:
+  - name: iis_parser
+    format: regex
+    regex: ^(?<datetime>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})\s(?<s_ip>\S+)\s(?<cs_method>\S+)\s(?<cs_uri_stem>\S+)\s(?<cs_uri_query>\S+)\s(?<s_port>\d+)\s(?<cs_username>\S+)\s(?<c_ip>\S+)\s(?<user_agent>[^\s]+)\s(?<referer>\S+)\s(?<sc_status>\d+)\s(?<sc_substatus>\d+)\s(?<sc_win32_status>\d+)\s(?<time_taken>\d+)$
+    time_key: datetime
+    time_format: "%Y-%m-%d %H:%M:%S"
+    time_keep: on
+    types: |
+      time_taken integer

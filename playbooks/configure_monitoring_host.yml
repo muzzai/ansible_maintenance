@@ -1,0 +1,187 @@
+---
+- name: Configure monitoring host
+  hosts: monitoring_hosts
+  become: true
+  vars:
+    aws_region: "{{ aws_region | default('') }}"
+    deploy_user: ec2-user
+    deploy_dir: /home/ec2-user
+    node_exporter_version: "1.10.2"
+    node_exporter_arch: "linux-amd64"
+  tasks:
+    - name: Fail if aws_region is not set
+      when: aws_region == ''
+      ansible.builtin.fail:
+        msg: "AWS region is not set"
+
+    # - name: Ensure basic packages
+    #   ansible.builtin.package:
+    #     name:
+    #       - python3
+    #       - jq
+    #       - curl
+    #       - tar
+    #       - gzip
+    #       - unzip
+    #     state: present
+
+    # - name: Include Prometheus role
+    #   ansible.builtin.include_role:
+    #     name: prometheus.prometheus.prometheus
+    #   vars:
+    #     prometheus_version: "2.45.0"
+    #     prometheus_config_file: templates/config.yml.j2
+    #     prometheus_user: prometheus
+    #     prometheus_group: prometheus
+    #     prometheus_data_dir: /var/lib/prometheus
+    #     prometheus_config_dir: /etc/prometheus
+    #     prometheus_service_enable: true
+    #     prometheus_service_state: started
+    #     prometheus_agent_mode: true
+
+    - name: Gather EC2 instances info
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+      register: ec2_info
+      delegate_to: localhost
+
+    - name: Build list of instances with internal IP and parsed Name
+      ansible.builtin.set_fact:
+        instances_with_445: >-
+          {{
+            instances_with_445 | default([]) + [
+              {
+                'id': item.instance_id,
+                'name': (item.tags.Name | regex_search('\\(([^()]*)\\)$') | default('')),
+                'internal_ip': item.network_interfaces[0].private_ip_address
+              }
+            ]
+          }}
+      loop: "{{ ec2_info.instances }}"
+      delegate_to: localhost
+
+    - name: Check if port 445 is open on each instance
+      ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
+      register: nmap_result
+      loop: "{{ instances_with_445 }}"
+      delegate_to: localhost
+      changed_when: false
+
+    - name: Filter instances where port 445 is open
+      ansible.builtin.set_fact:
+        instances_with_445_open: >-
+          {{
+            instances_with_445_open | default([]) +
+            [instances_with_445[loop.index0]]
+            if '445/tcp open' in item.stdout else
+            instances_with_445_open | default([])
+          }}
+      loop: "{{ nmap_result.results }}"
+      delegate_to: localhost
+
+    - name: Show instances with port 445 open (confirmed by nmap)
+      ansible.builtin.debug:
+        var: instances_with_445_open
+
+  #   - name: Download node_exporter archive
+  #     ansible.builtin.get_url:
+  #       url: >-
+  #         https://github.com/prometheus/node_exporter/releases/download/
+  #         v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version
+  #         }}.{{ node_exporter_arch }}.tar.gz
+  #       dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+  #       mode: "0644"
+  #     register: node_dl
+  #     changed_when: node_dl.dest is defined
+
+  #   - name: Extract node_exporter and install binary
+  #     ansible.builtin.unarchive:
+  #       src: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+  #       dest: /tmp
+  #       remote_src: true
+  #     when: node_dl is defined
+
+  #   - name: Copy node_exporter binary to /usr/local/bin
+  #     ansible.builtin.copy:
+  #       src: >-
+  #         /tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch
+  #         }}/node_exporter
+  #       dest: /usr/local/bin/node_exporter
+  #       mode: "0755"
+  #     when: node_dl is defined
+
+  #   - name: Ensure node_exporter binary ownership
+  #     ansible.builtin.file:
+  #       path: /usr/local/bin/node_exporter
+  #       owner: node_exporter
+  #       group: node_exporter
+  #       mode: "0755"
+
+  #   - name: Deploy node_exporter systemd unit file
+  #     ansible.builtin.copy:
+  #       src: "monitoring_files/node_exporter.service"
+  #       dest: "/etc/systemd/system/node_exporter.service"
+  #       owner: root
+  #       group: root
+  #       mode: "0644"
+  #     notify:
+  #       - Daemon reload
+  #       - Restart node_exporter
+
+  #   - name: Copy helper scripts and sync/gen scripts to deploy dir
+  #     ansible.builtin.copy:
+  #       src: "{{ item }}"
+  #       dest: "{{ deploy_dir }}/{{ item | basename }}"
+  #       owner: "{{ deploy_user }}"
+  #       group: "{{ deploy_user }}"
+  #       mode: "0755"
+  #     loop:
+  #       - monitoring_files/build_fluentbit_lua_from_ec2_patched.py
+  #       - monitoring_files/sync_iis_mounts_and_fb_patched.py
+  #       - monitoring_files/find-ec2-open-445.sh
+  #       - monitoring_files/configure_journalctl.sh
+  #       - monitoring_files/rescue_full_disk.sh
+
+  #   - name: Generate append_time_corrected.lua (run builder)
+  #     ansible.builtin.command: >-
+  #       "{{ deploy_dir }}/build_fluentbit_lua_from_ec2_patched.py
+  #       --region us-east-2"
+  #     args:
+  #       chdir: "{{ deploy_dir }}"
+  #     environment:
+  #       PATH: "/usr/bin:/usr/local/bin:{{ ansible_env.PATH | default('') }}"
+  #     register: lua_build
+  #     changed_when: "'Wrote' in lua_build.stdout"
+
+  #   - name: Run journalctl configuration script
+  #     ansible.builtin.command: "{{ deploy_dir }}/configure_journalctl.sh"
+  #     args:
+  #       chdir: "{{ deploy_dir }}"
+  #     changed_when: true
+
+  #   - name: Ensure Fluent Bit systemd service enabled and started
+  #     ansible.builtin.systemd:
+  #       name: fluent-bit
+  #       enabled: true
+  #       state: started
+
+  #   - name: Ensure node_exporter systemd service enabled and started
+  #     ansible.builtin.systemd:
+  #       name: node_exporter
+  #       enabled: true
+  #       state: started
+
+  # handlers:
+  #   - name: Daemon reload
+  #     ansible.builtin.systemd:
+  #       daemon_reload: true
+
+  #   - name: Restart Prometheus
+  #     ansible.builtin.systemd:
+  #       name: prometheus
+  #       state: restarted
+
+  #   - name: Restart node_exporter
+  #     ansible.builtin.systemd:
+  #       name: node_exporter
+  #       state: restarted

@@ -1,0 +1,8 @@
+{
+  "python.defaultInterpreterPath": "/home/ashatalov/venvs/ansible/bin/python",
+  "ansible.python.interpreterPath": "/home/ashatalov/venvs/ansible/bin/python",
+  "terminal.integrated.env.linux": {
+    "VIRTUAL_ENV": "/home/ashatalov/venvs/ansible",
+    "PATH": "/home/ashatalov/venvs/ansible/bin:${env:PATH}"
+  }
+}
