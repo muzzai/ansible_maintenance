@@ -8,12 +8,12 @@
     vpc_id: "{{ vpc_id | default('') }}"
     ami_id: "{{ ami_id | default('') }}"
     iam_instance_profile_arn: "{{ iam_instance_profile_arn | default('') }}"
+    root_volume_size: "{{ root_volume_size | default(20) }}"  # Size in GB
     instance_type: "{{ instance_type | default('t3.micro') }}"
     key_name: "{{ ec2_name_tag }}-linux-ec2-key"
     vault_secret_path: "linux/{{ key_name }}"
     security_group_name: "linux-ec2-sg"
-    associate_eip: "{{ associate_eip | default(false) }}"
-    root_volume_size: "{{ root_volume_size | default(20) }}"  # Size in GB
+    associate_eip: true
 
   tasks:
     - name: Validate required parameters
@@ -88,7 +88,7 @@
               Name: "{{ ec2_name_tag }}"
             volumes:
               - device_name: /dev/xvda
-                volume_size: "{{ root_volume_size }}"
+                volume_size: "{{ root_volume_size | int }}"
                 volume_type: gp3
                 delete_on_termination: true
                 encrypted: true
@@ -144,26 +144,3 @@
         - name: Output cleanup info
           ansible.builtin.debug:
             msg: "Cleanup attempted for all created resources due to failure."
-
-    - name: Associate Elastic IP (optional)
-      when: associate_eip | bool
-      amazon.aws.ec2_eip:
-        region: "{{ aws_region }}"
-        state: present
-        device_id: "{{ ec2_result.instances[0].instance_id }}"
-      register: eip_result
-
-    - name: Store private key in Vault
-      ansible.builtin.include_role:
-        name: manage_secret
-      vars:
-        manage_secret_action: write
-        manage_secret_path: "{{ vault_secret_path }}//{{ ec2_result.instances[0].instance_id }}"
-        manage_secret_payload:
-          private_key: "{{ keypair_result.key.private_key }}"
-
-    - name: Output instance info
-      ansible.builtin.debug:
-        msg:
-          - "Instance info: {{ ec2_result.instances }}"
-          - "Elastic IP: {{ (associate_eip | bool) | ternary(eip_result.eip.public_ip, 'Not associated') }}"
