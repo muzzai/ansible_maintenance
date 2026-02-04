@@ -2,6 +2,8 @@
 - name: Create and configure a Linux EC2 instance
   hosts: localhost
   gather_facts: false
+  vars_files:
+    - ../defaults/create_linux_ec2_instance_defaults.yml
   tasks:
     - name: Assert required variables are supplied
       ansible.builtin.assert:
