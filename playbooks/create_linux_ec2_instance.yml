@@ -2,44 +2,29 @@
 - name: Create and configure a Linux EC2 instance
   hosts: localhost
   gather_facts: false
-  vars:
-    ec2_name_tag: "{{ ec2_name_tag | default('') }}"
-    aws_region: "{{ aws_region | default('') }}"
-    vpc_id: "{{ vpc_id | default('') }}"
-    subnet_id: "{{ subnet_id | default('') }}"
-    ami_id: "{{ ami_id | default('') }}"
-    instance_type: "{{ instance_type | default('t3.micro') }}"
-    iam_instance_profile_arn: "{{ iam_instance_profile_arn | default('') }}"
-    root_volume_size: "{{ root_volume_size | default('30') }}"
-    root_volume_type: "{{ root_volume_type | default('gp2') }}"
-    root_volume_encrypted: "{{ root_volume_encrypted | default(false) }}"
-    root_volume_delete_on_termination: "{{ root_volume_delete_on_termination | default(true) }}"
-    key_name: "{{ ec2_name_tag }}-linux-ec2-key"
-    vault_secret_path: "linux/{{ key_name }}"
-    security_group_name: "linux-ec2-sg"
-    associate_eip: true
-
   tasks:
-    - name: Validate required parameters
+    - name: Assert required variables are supplied
       ansible.builtin.assert:
         that:
-          - aws_region != ''
-          - ami_id != ''
-          - ec2_name_tag != ''
-        fail_msg: "All required parameters (region, ami-id, ec2 name tag) must be set."
+          - aws_region is defined and aws_region|length > 0
+          - ami_id is defined and ami_id|length > 0
+          - ec2_name_tag is defined and ec2_name_tag|length > 0
+          - iam_instance_profile_arn is defined and iam_instance_profile_arn|length > 0
+        fail_msg: "One or more required variables (aws_region, ami_id, ec2_name_tag, iam_instance_profile_arn) are missing."
 
+    # 2. Discover optional vars if not supplied
     - name: Lookup default VPC if vpc_id not provided
       amazon.aws.ec2_vpc_net_info:
         region: "{{ aws_region }}"
         filters:
           isDefault: true
       register: default_vpc_info
-      when: vpc_id == ''
+      when: vpc_id == "auto"
 
     - name: Set vpc_id to default if not provided
       ansible.builtin.set_fact:
         vpc_id: "{{ default_vpc_info.vpcs[0].vpc_id }}"
-      when: vpc_id == '' and default_vpc_info.vpcs | length > 0
+      when: vpc_id == "auto" and default_vpc_info.vpcs | length > 0
 
     - name: Lookup default subnet if subnet_id not provided
       amazon.aws.ec2_vpc_subnet_info:
@@ -48,12 +33,19 @@
           defaultForAz: true
           vpc-id: "{{ vpc_id }}"
       register: default_subnet_info
-      when: subnet_id == ''
+      when: subnet_id == "auto"
 
     - name: Set subnet_id to default if not provided
       ansible.builtin.set_fact:
         subnet_id: "{{ default_subnet_info.subnets[0].id }}"
-      when: subnet_id == '' and default_subnet_info.subnets | length > 0
+      when: subnet_id == "auto" and default_subnet_info.subnets | length > 0
+
+    # 3. Use set_fact for derived vars
+    - name: Set derived variables
+      ansible.builtin.set_fact:
+        key_name: "{{ ec2_name_tag }}-linux-ec2-key"
+        vault_secret_path: "linux/{{ ec2_name_tag }}-linux-ec2-key"
+        security_group_name: "linux-ec2-sg-{{ ec2_name_tag }}"
 
     - name: Create temporary file for Vault CA cert
       ansible.builtin.tempfile:

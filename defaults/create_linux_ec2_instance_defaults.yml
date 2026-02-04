@@ -1,0 +1,12 @@
+ec2_name_tag: ""
+aws_region: ""
+ami_id: ""
+iam_instance_profile_arn: ""
+instance_type: "t3.micro"
+root_volume_size: 30
+root_volume_type: "gp3"
+root_volume_encrypted: true
+root_volume_delete_on_termination: true
+associate_eip: false
+vpc_id: "auto"
+subnet_id: "auto"
