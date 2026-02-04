@@ -36,10 +36,7 @@
       ansible.builtin.copy:
         content: "{{ lookup('env', 'VAULT_CA_CERT_PEM') }}"
         dest: "{{ vault_ca_cert_file.path }}"
-        owner: root
-        group: root
         mode: '0644'
-      become: true
 
     - name: Debug Vault environment variables
       ansible.builtin.debug:
