@@ -36,9 +36,9 @@
       ansible.builtin.copy:
         content: "{{ lookup('env', 'VAULT_CA_CERT_PEM') }}"
         dest: "{{ vault_ca_cert_file.path }}"
+        owner: root
+        group: root
         mode: '0644'
-        # owner: root
-        # group: root
 
     - name: Debug Vault environment variables
       ansible.builtin.debug:
@@ -57,9 +57,9 @@
       ansible.builtin.debug:
         msg: "{{ vault_ca_cert_contents.content | b64decode }}"
 
-    # - name: Update CA trust store
-    #   ansible.builtin.command: update-ca-trust
-    #   become: true
+    - name: Update CA trust store
+      ansible.builtin.command: update-ca-trust
+      become: true
 
     - name: Check Vault connection
       community.hashi_vault.vault_login:
@@ -68,10 +68,8 @@
         role_id: "{{ lookup('env', 'VAULT_ROLE_ID') }}"
         secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') }}"
         ca_cert: "{{ vault_ca_cert_file.path }}"
-        validate_certs: false
       register: vault_login_result
       failed_when: vault_login_result.failed or (vault_login_result.status is defined and vault_login_result.status != 200)
-      delegate_to: localhost
 
     - name: Create security group
       amazon.aws.ec2_group:
