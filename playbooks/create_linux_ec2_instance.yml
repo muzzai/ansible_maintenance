@@ -13,6 +13,7 @@
     vault_secret_path: "linux/{{ key_name }}"
     security_group_name: "linux-ec2-sg"
     associate_eip: "{{ associate_eip | default(false) }}"
+    root_volume_size: "{{ root_volume_size | default(20) }}"  # Size in GB
 
   tasks:
     - name: Validate required parameters
@@ -47,7 +48,7 @@
 
     - name: Launch EC2 instance
       amazon.aws.ec2_instance:
-        name: "{{ ec2_name_tag }}{{ key_name }}"
+        name: "{{ ec2_name_tag }}"
         key_name: "{{ key_name }}"
         instance_type: "{{ instance_type }}"
         image_id: "{{ ami_id }}"
@@ -59,7 +60,13 @@
         wait: true
         count: 1
         tags:
-          Name: "{{ ec2_name_tag }}{{ key_name }}"
+          Name: "{{ ec2_name_tag }}"
+        volumes:
+          - device_name: /dev/xvda
+            volume_size: "{{ root_volume_size }}"
+            volume_type: gp3
+            delete_on_termination: true
+            encrypted: true
       register: ec2_result
 
     - name: Associate Elastic IP (optional)
@@ -67,7 +74,7 @@
       amazon.aws.ec2_eip:
         region: "{{ aws_region }}"
         state: present
-        instance_id: "{{ ec2_result.instances[0].instance_id }}"
+        device_id: "{{ ec2_result.instances[0].instance_id }}"
       register: eip_result
 
     - name: Store private key in Vault
