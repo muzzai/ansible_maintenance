@@ -8,7 +8,7 @@
     vpc_id: "{{ vpc_id | default('') }}"
     ami_id: "{{ ami_id | default('') }}"
     iam_instance_profile_arn: "{{ iam_instance_profile_arn | default('') }}"
-    root_volume_size: "{{ root_volume_size | default(20) }}"  # Size in GB
+    root_volume_size: 30  # Size in GB
     instance_type: "{{ instance_type | default('t3.micro') }}"
     key_name: "{{ ec2_name_tag }}-linux-ec2-key"
     vault_secret_path: "linux/{{ key_name }}"
@@ -88,10 +88,11 @@
               Name: "{{ ec2_name_tag }}"
             volumes:
               - device_name: /dev/xvda
-                volume_size: "{{ root_volume_size | int }}"
-                volume_type: gp3
-                delete_on_termination: true
-                encrypted: true
+                ebs:
+                  volume_size: "{{ root_volume_size | int }}"
+                  volume_type: gp3
+                  delete_on_termination: false
+                  encrypted: false
           register: ec2_result
 
         - name: Associate Elastic IP (optional)
