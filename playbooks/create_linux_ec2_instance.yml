@@ -39,6 +39,7 @@
         owner: root
         group: root
         mode: '0644'
+      become: true
 
     - name: Debug Vault environment variables
       ansible.builtin.debug:
