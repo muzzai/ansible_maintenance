@@ -87,12 +87,6 @@
             count: 1
             tags:
               Name: "{{ ec2_name_tag }}"
-            volumes:
-              - device_name: /dev/sda1
-                ebs:
-                  volume_type: gp3
-                  volume_size: 30
-                  delete_on_termination: true
           register: ec2_result
 
         - name: Associate Elastic IP (optional)
