@@ -38,26 +38,6 @@
         dest: "{{ vault_ca_cert_file.path }}"
         mode: '0644'
 
-    - name: Debug Vault environment variables
-      ansible.builtin.debug:
-        msg:
-          - "VAULT_ADDR={{ lookup('env', 'VAULT_ADDR') }}"
-          - "VAULT_ROLE_ID={{ lookup('env', 'VAULT_ROLE_ID') }}"
-          - "VAULT_SECRET_ID={{ lookup('env', 'VAULT_SECRET_ID') }}"
-          - "VAULT_CA_CERT_PEM={{ lookup('env', 'VAULT_CA_CERT_PEM') }}"
-
-    - name: Slurp contents of written Vault CA cert file
-      ansible.builtin.slurp:
-        src: "{{ vault_ca_cert_file.path }}"
-      register: vault_ca_cert_contents
-
-    - name: Debug Vault CA cert file contents
-      ansible.builtin.debug:
-        msg: "{{ vault_ca_cert_contents.content | b64decode }}"
-
-    - name: Update CA trust store
-      ansible.builtin.command: update-ca-trust
-
     - name: Check Vault connection
       community.hashi_vault.vault_login:
         url: "{{ lookup('env', 'VAULT_ADDR') }}"
@@ -65,6 +45,7 @@
         role_id: "{{ lookup('env', 'VAULT_ROLE_ID') }}"
         secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') }}"
         ca_cert: "{{ vault_ca_cert_file.path }}"
+        validate_certs: true
       register: vault_login_result
       failed_when: vault_login_result.failed or (vault_login_result.status is defined and vault_login_result.status != 200)
 
