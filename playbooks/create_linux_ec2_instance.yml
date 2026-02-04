@@ -57,7 +57,6 @@
 
     - name: Update CA trust store
       ansible.builtin.command: update-ca-trust
-      become: true
 
     - name: Check Vault connection
       community.hashi_vault.vault_login:
