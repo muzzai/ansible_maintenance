@@ -17,6 +17,7 @@
 
   tasks:
 
+
     - name: Validate required parameters
       ansible.builtin.assert:
         that:
@@ -27,13 +28,25 @@
           - ec2_name_tag != ''
         fail_msg: "All required parameters (region, vpc-id, ami-id, iam arn, ec2 name tag) must be set."
 
+    - name: Create temporary file for Vault CA cert
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .crt
+      register: vault_ca_cert_file
+
+    - name: Write Vault CA cert to file
+      ansible.builtin.copy:
+        content: "{{ lookup('env', 'VAULT_CA_CERT_PEM') }}"
+        dest: "{{ vault_ca_cert_file.path }}"
+        mode: '0600'
+
     - name: Check Vault connection
       community.hashi_vault.vault_login:
         url: "{{ lookup('env', 'VAULT_ADDR') }}"
         auth_method: approle
         role_id: "{{ lookup('env', 'VAULT_ROLE_ID') }}"
         secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') }}"
-        ca_cert: "{{ lookup('env', 'VAULT_CA_CERT_PEM') | default(omit) }}"
+        ca_cert: "{{ vault_ca_cert_file.path }}"
       register: vault_login_result
       failed_when: vault_login_result.failed or (vault_login_result.status is defined and vault_login_result.status != 200)
       delegate_to: localhost
