@@ -16,6 +16,7 @@
     root_volume_size: "{{ root_volume_size | default(20) }}"  # Size in GB
 
   tasks:
+
     - name: Validate required parameters
       ansible.builtin.assert:
         that:
@@ -25,6 +26,17 @@
           - iam_instance_profile_arn != ''
           - ec2_name_tag != ''
         fail_msg: "All required parameters (region, vpc-id, ami-id, iam arn, ec2 name tag) must be set."
+
+    - name: Check Vault connection
+      community.hashi_vault.vault_login:
+        url: "{{ lookup('env', 'VAULT_ADDR') }}"
+        auth_method: approle
+        role_id: "{{ lookup('env', 'VAULT_ROLE_ID') }}"
+        secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') }}"
+        ca_cert: "{{ lookup('env', 'VAULT_CA_CERT_PEM') | default(omit) }}"
+      register: vault_login_result
+      failed_when: vault_login_result.failed or (vault_login_result.status is defined and vault_login_result.status != 200)
+      delegate_to: localhost
 
     - name: Create security group
       amazon.aws.ec2_group:
@@ -46,28 +58,81 @@
         state: present
       register: keypair_result
 
-    - name: Launch EC2 instance
-      amazon.aws.ec2_instance:
-        name: "{{ ec2_name_tag }}"
-        key_name: "{{ key_name }}"
-        instance_type: "{{ instance_type }}"
-        image_id: "{{ ami_id }}"
-        region: "{{ aws_region }}"
-        vpc_subnet_id: "{{ vpc_id }}"
-        security_group: "{{ sg_result.group_id }}"
-        iam_instance_profile:
-          arn: "{{ iam_instance_profile_arn }}"
-        wait: true
-        count: 1
-        tags:
-          Name: "{{ ec2_name_tag }}"
-        volumes:
-          - device_name: /dev/xvda
-            volume_size: "{{ root_volume_size }}"
-            volume_type: gp3
-            delete_on_termination: true
-            encrypted: true
-      register: ec2_result
+    - name: Launch and configure EC2 instance (with cleanup on failure)
+      block:
+        - name: Launch EC2 instance
+          amazon.aws.ec2_instance:
+            name: "{{ ec2_name_tag }}"
+            key_name: "{{ key_name }}"
+            instance_type: "{{ instance_type }}"
+            image_id: "{{ ami_id }}"
+            region: "{{ aws_region }}"
+            vpc_subnet_id: "{{ vpc_id }}"
+            security_group: "{{ sg_result.group_id }}"
+            iam_instance_profile:
+              arn: "{{ iam_instance_profile_arn }}"
+            wait: true
+            count: 1
+            tags:
+              Name: "{{ ec2_name_tag }}"
+            volumes:
+              - device_name: /dev/xvda
+                volume_size: "{{ root_volume_size }}"
+                volume_type: gp3
+                delete_on_termination: true
+                encrypted: true
+          register: ec2_result
+
+        - name: Associate Elastic IP (optional)
+          when: associate_eip | bool
+          amazon.aws.ec2_eip:
+            region: "{{ aws_region }}"
+            state: present
+            device_id: "{{ ec2_result.instances[0].instance_id }}"
+          register: eip_result
+
+        - name: Store private key in Vault
+          ansible.builtin.include_role:
+            name: manage_secret
+          vars:
+            manage_secret_action: write
+            manage_secret_path: "{{ vault_secret_path }}//{{ ec2_result.instances[0].instance_id }}"
+            manage_secret_payload:
+              private_key: "{{ keypair_result.key.private_key }}"
+
+        - name: Output instance info
+          ansible.builtin.debug:
+            msg:
+              - "Instance info: {{ ec2_result.instances }}"
+              - "Elastic IP: {{ (associate_eip | bool) | ternary(eip_result.eip.public_ip, 'Not associated') }}"
+      rescue:
+        - name: Delete EC2 key pair if created
+          amazon.aws.ec2_key:
+            name: "{{ key_name }}"
+            region: "{{ aws_region }}"
+            state: absent
+          ignore_errors: true
+
+        - name: Delete EC2 instance if created
+          when: ec2_result is defined and ec2_result.instances is defined and ec2_result.instances | length > 0
+          amazon.aws.ec2_instance:
+            instance_ids: "{{ ec2_result.instances[0].instance_id }}"
+            region: "{{ aws_region }}"
+            state: absent
+            wait: true
+          ignore_errors: true
+
+        - name: Delete security group if created
+          amazon.aws.ec2_group:
+            name: "{{ security_group_name }}"
+            region: "{{ aws_region }}"
+            vpc_id: "{{ vpc_id }}"
+            state: absent
+          ignore_errors: true
+
+        - name: Output cleanup info
+          ansible.builtin.debug:
+            msg: "Cleanup attempted for all created resources due to failure."
 
     - name: Associate Elastic IP (optional)
       when: associate_eip | bool
