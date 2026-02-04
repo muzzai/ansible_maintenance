@@ -89,28 +89,28 @@
               Name: "{{ ec2_name_tag }}"
           register: ec2_result
 
-        - name: Associate Elastic IP (optional)
-          when: associate_eip | bool
-          amazon.aws.ec2_eip:
-            region: "{{ aws_region }}"
-            state: present
-            device_id: "{{ ec2_result.instances[0].instance_id }}"
-          register: eip_result
+        # - name: Associate Elastic IP (optional)
+        #   when: associate_eip | bool
+        #   amazon.aws.ec2_eip:
+        #     region: "{{ aws_region }}"
+        #     state: present
+        #     device_id: "{{ ec2_result.instances[0].instance_id }}"
+        #   register: eip_result
 
-        - name: Store private key in Vault
-          ansible.builtin.include_role:
-            name: manage_secret
-          vars:
-            manage_secret_action: write
-            manage_secret_path: "{{ vault_secret_path }}/{{ ec2_result.instances[0].instance_id }}"
-            manage_secret_payload:
-              private_key: "{{ keypair_result.key.private_key }}"
+        # - name: Store private key in Vault
+        #   ansible.builtin.include_role:
+        #     name: manage_secret
+        #   vars:
+        #     manage_secret_action: write
+        #     manage_secret_path: "{{ vault_secret_path }}/{{ ec2_result.instances[0].instance_id }}"
+        #     manage_secret_payload:
+        #       private_key: "{{ keypair_result.key.private_key }}"
 
-        - name: Output instance info
-          ansible.builtin.debug:
-            msg:
-              - "Instance info: {{ ec2_result.instances }}"
-              - "Elastic IP: {{ (associate_eip | bool) | ternary(eip_result.eip.public_ip, 'Not associated') }}"
+        # - name: Output instance info
+        #   ansible.builtin.debug:
+        #     msg:
+        #       - "Instance info: {{ ec2_result.instances }}"
+        #       - "Elastic IP: {{ (associate_eip | bool) | ternary(eip_result.eip.public_ip, 'Not associated') }}"
       rescue:
         - name: Delete EC2 key pair if created
           amazon.aws.ec2_key:
