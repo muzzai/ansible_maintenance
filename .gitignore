@@ -1,5 +1,4 @@
 .ansible
 .assistant
-.vscodemonitoring_files
-/monitoring_files/*.log
-/monitoring_files/*.yml
+.vscode
+.monitoring_files
