@@ -1,0 +1,5 @@
+---
+manage_secret_action: ""
+manage_secret_path: ""
+manage_secret_payload: ""
+manage_secret_provision_control_host: localhost

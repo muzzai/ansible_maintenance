@@ -1,10 +1,10 @@
 ---
-- name: Gather data 
+- name: Gather data
   hosts: localhost
   gather_facts: false
   vars:
     aws_region: "{{ aws_region | default('') }}"
-    
+
   tasks:
 
     - name: Fail if aws_region is not set
