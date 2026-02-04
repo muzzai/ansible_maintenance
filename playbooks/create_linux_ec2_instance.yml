@@ -7,9 +7,9 @@
     aws_region: "{{ aws_region | default('') }}"
     vpc_id: "{{ vpc_id | default('') }}"
     ami_id: "{{ ami_id | default('') }}"
+    instance_type: "{{ instance_type | default('t3.micro') }}"
     iam_instance_profile_arn: "{{ iam_instance_profile_arn | default('') }}"
     root_volume_size: 30  # Size in GB
-    instance_type: "{{ instance_type | default('t3.micro') }}"
     key_name: "{{ ec2_name_tag }}-linux-ec2-key"
     vault_secret_path: "linux/{{ key_name }}"
     security_group_name: "linux-ec2-sg"
@@ -102,7 +102,7 @@
             name: manage_secret
           vars:
             manage_secret_action: write
-            manage_secret_path: "{{ vault_secret_path }}//{{ ec2_result.instances[0].instance_id }}"
+            manage_secret_path: "{{ vault_secret_path }}/{{ ec2_result.instances[0].instance_id }}"
             manage_secret_payload:
               private_key: "{{ keypair_result.key.private_key }}"
 
