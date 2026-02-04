@@ -47,29 +47,6 @@
         vault_secret_path: "linux/{{ ec2_name_tag }}-linux-ec2-key"
         security_group_name: "linux-ec2-sg-{{ ec2_name_tag }}"
 
-    - name: Create temporary file for Vault CA cert
-      ansible.builtin.tempfile:
-        state: file
-        suffix: .crt
-      register: vault_ca_cert_file
-
-    - name: Write Vault CA cert to file
-      ansible.builtin.copy:
-        content: "{{ lookup('env', 'VAULT_CA_CERT_PEM') }}"
-        dest: "{{ vault_ca_cert_file.path }}"
-        mode: '0644'
-
-    - name: Check Vault connection
-      community.hashi_vault.vault_login:
-        url: "{{ lookup('env', 'VAULT_ADDR') }}"
-        auth_method: approle
-        role_id: "{{ lookup('env', 'VAULT_ROLE_ID') }}"
-        secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') }}"
-        ca_cert: "{{ vault_ca_cert_file.path }}"
-        validate_certs: true
-      register: vault_login_result
-      failed_when: vault_login_result.failed or (vault_login_result.status is defined and vault_login_result.status != 200)
-
     - name: Create security group
       amazon.aws.ec2_group:
         name: "{{ security_group_name }}"
