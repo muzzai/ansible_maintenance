@@ -1,0 +1,5 @@
+prometheus_binary_url:
+  "https://github.com/{{ _prometheus_repo }}/releases/download/v{{ prometheus_version }}/
+  prometheus-{{ prometheus_version }}.{{ (ansible_system | default('Linux')) | lower }}-{{ _prometheus_go_ansible_arch }}.tar.gz"
+prometheus_local_cache_path: "/tmp/prometheus-linux-amd64/\
+  {{ prometheus_version }}"
