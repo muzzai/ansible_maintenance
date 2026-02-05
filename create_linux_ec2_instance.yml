@@ -14,7 +14,6 @@
           - iam_instance_profile_arn is defined and iam_instance_profile_arn|length > 0
         fail_msg: "One or more required variables (aws_region, ami_id, ec2_name_tag, iam_instance_profile_arn) are missing."
 
-    # 2. Discover optional vars if not supplied
     - name: Lookup default VPC if vpc_id not provided
       amazon.aws.ec2_vpc_net_info:
         region: "{{ aws_region }}"
@@ -42,7 +41,6 @@
         subnet_id: "{{ default_subnet_info.subnets[0].id }}"
       when: subnet_id == "auto" and default_subnet_info.subnets | length > 0
 
-    # 3. Use set_fact for derived vars
     - name: Set derived variables
       ansible.builtin.set_fact:
         key_name: "{{ ec2_name_tag }}-linux-ec2-key"
@@ -94,6 +92,16 @@
             tags:
               Name: "{{ ec2_name_tag }}"
           register: ec2_result
+
+        - name: Wait for instance to be running before EIP association
+          amazon.aws.ec2_instance_info:
+            region: "{{ aws_region }}"
+            instance_ids:
+              - "{{ ec2_result.instances[0].instance_id }}"
+          register: instance_info
+          until: instance_info.instances[0].state.name == 'running'
+          retries: 12
+          delay: 10
 
         - name: Associate Elastic IP (optional)
           when: associate_eip | bool
