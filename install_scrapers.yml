@@ -1,5 +1,6 @@
 - name: Install prometheus and node_exporter on monitoring hosts
   hosts: monitoring_hosts
+  gather_facts: false
   vars_files:
     - defaults/install_scrapers_defaults.yml
   tasks:

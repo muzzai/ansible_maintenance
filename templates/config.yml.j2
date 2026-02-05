@@ -9,7 +9,7 @@ remote_write:
 scrape_configs:
 - job_name: 'windows_exporter'
   ec2_sd_configs:
-    - region: {{ aws_region }}
+    - region: {{ hostvars[inventory_hostname]['placement']['region'] }}
       port: 9182
   relabel_configs:
     - source_labels: [__meta_ec2_private_ip]
@@ -30,4 +30,4 @@ scrape_configs:
 
   relabel_configs:
     - target_label: instance
-      replacement: '{{ aws_region }}-exporter{% if deploy_environment == "testing" %}_testing{% endif %}'
+      replacement: '{{ hostvars[inventory_hostname]["placement"]["region"] }}-exporter{% if deploy_environment == "testing" %}_testing{% endif %}'
