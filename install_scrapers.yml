@@ -36,7 +36,8 @@
 
         - name: Download node_exporter archive
           ansible.builtin.get_url:
-            url: "https://github.com/prometheus/node_exporter/releases/download/\
+            url:
+              "https://github.com/prometheus/node_exporter/releases/download/\
               v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}.tar.gz"
             dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
             mode: "0644"
@@ -145,6 +146,33 @@
             prometheus_service_state: started
             prometheus_agent_mode: true
           when: not prometheus_installed
+
+
+        # Check fluent-bit service status
+        - name: Check if fluent-bit service is installed, enabled, and running
+          ansible.builtin.systemd:
+            name: fluent-bit
+          register: fluent_bit_status
+          failed_when: false
+          become: true
+
+        - name: Set fluent_bit_installed fact
+          ansible.builtin.set_fact:
+            fluent_bit_installed: >-
+              {{ fluent_bit_status.status is defined and
+                 fluent_bit_status.status.LoadState == 'loaded' and
+                 fluent_bit_status.status.ActiveState == 'active' and
+                 fluent_bit_status.status.UnitFileState == 'enabled' }}
+
+        - name: Install fluent-bit using role
+          ansible.builtin.include_role:
+            name: bimdata.fluentbit
+          vars:
+            fluent_bit_version: "2.0.12"
+            fluent_bit_config_file: templates/fluent-bit.conf.j2
+            fluent_bit_service_enable: true
+            fluent_bit_service_state: started
+          when: not fluent_bit_installed
 
       rescue:
         - name: Stop and remove node_exporter service

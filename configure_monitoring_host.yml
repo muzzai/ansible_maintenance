@@ -4,9 +4,7 @@
   gather_facts: false
   vars:
     aws_region: "{{ aws_region | default('') }}"
-
   tasks:
-
     - name: Fail if aws_region is not set
       when: aws_region == ''
       ansible.builtin.fail:
@@ -53,5 +51,3 @@
     - name: Show instances with port 445 open (confirmed by nmap)
       ansible.builtin.debug:
         var: instances_with_445_open
-
-
