@@ -31,7 +31,7 @@
       vars:
         instance_name: "{{ item.tags.Name | default('') }}"
         name_suffix: >-
-          {{ instance_name | regex_replace('.*\\(([^()]*)\\)\\s*$', '\\1') if '(' in instance_name else '' }}
+          {{ instance_name | regex_replace('.*\(([^()]*)\)\s*$', '\1') if '(' in instance_name else '' }}
       loop: "{{ ec2_info.instances }}"
 
     - name: Check if port 445 is open on each instance
