@@ -15,7 +15,9 @@
 
         - name: Gather node facts
           ansible.builtin.setup:
-            gather_subset: system
+            gather_subset:
+              - system
+              - processor_count
 
         - name: Check if node_exporter service is installed, enabled, and running
           ansible.builtin.systemd:
