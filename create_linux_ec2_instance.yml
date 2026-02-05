@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: false
   vars_files:
-    - ../defaults/create_linux_ec2_instance_defaults.yml
+    - defaults/create_linux_ec2_instance_defaults.yml
   tasks:
     - name: Assert required variables are supplied
       ansible.builtin.assert:
@@ -44,7 +44,6 @@
     - name: Set derived variables
       ansible.builtin.set_fact:
         key_name: "{{ ec2_name_tag }}-linux-ec2-key"
-        vault_secret_path: "linux/{{ ec2_name_tag }}-linux-ec2-key"
         security_group_name: "linux-ec2-sg-{{ ec2_name_tag }}"
 
     - name: Create security group
@@ -81,6 +80,7 @@
             iam_instance_profile: "{{ iam_instance_profile_arn }}"
             wait: true
             wait_timeout: 500
+            state: running
             count: 1
             volumes:
               - device_name: /dev/sda1
@@ -93,22 +93,16 @@
               Name: "{{ ec2_name_tag }}"
           register: ec2_result
 
-        - name: Wait for instance to be running before EIP association
-          amazon.aws.ec2_instance_info:
-            region: "{{ aws_region }}"
-            instance_ids:
-              - "{{ ec2_result.instances[0].instance_id }}"
-          register: instance_info
-          until: instance_info.instances[0].state.name == 'running'
-          retries: 12
-          delay: 10
+        - name: Set instance ID and derived facts
+          ansible.builtin.set_fact:
+            launched_instance_id: "{{ ec2_result.instances[0].instance_id }}"
 
         - name: Associate Elastic IP (optional)
           when: associate_eip | bool
           amazon.aws.ec2_eip:
             region: "{{ aws_region }}"
             state: present
-            device_id: "{{ ec2_result.instances[0].instance_id }}"
+            device_id: "{{ launched_instance_id }}"
           register: eip_result
 
         - name: Store private key in Vault
@@ -116,7 +110,7 @@
             name: manage_secret
           vars:
             manage_secret_action: write
-            manage_secret_path: "{{ vault_secret_path }}/{{ ec2_result.instances[0].instance_id }}"
+            manage_secret_path: "linux/{{ launched_instance_id }}"
             manage_secret_payload:
               private_key: "{{ keypair_result.key.private_key }}"
 
