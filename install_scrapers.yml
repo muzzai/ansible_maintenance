@@ -48,6 +48,14 @@
           when: node_dl is defined and not node_exporter_installed
           become: true
 
+        - name: Copy node_exporter binary to /usr/local/bin
+          ansible.builtin.copy:
+            src: "/tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}/node_exporter"
+            dest: /usr/local/bin/node_exporter
+            remote_src: true
+            mode: "0755"
+          become: true
+          when: not node_exporter_installed
 
         - name: Ensure node_exporter group exists
           ansible.builtin.group:
