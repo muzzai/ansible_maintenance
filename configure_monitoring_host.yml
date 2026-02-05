@@ -22,15 +22,16 @@
             instances_with_445 | default([]) + [
               {
                 'id': item.instance_id,
-                'name': item.tags.Name | default(''),
+                'name': instance_name,
                 'name_suffix': name_suffix,
                 'internal_ip': item.network_interfaces[0].private_ip_address
               }
             ]
           }}
       vars:
+        instance_name: "{{ item.tags.Name | default('') }}"
         name_suffix: >-
-          {{ item.tags.Name | regex_replace('.*\\(([^()]*)\\)\\s*$', '\\1') if '(' in item.tags.Name else '' }}
+          {{ instance_name | regex_replace('.*\\(([^()]*)\\)\\s*$', '\\1') if '(' in instance_name else '' }}
       loop: "{{ ec2_info.instances }}"
 
     - name: Check if port 445 is open on each instance
