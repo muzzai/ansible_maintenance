@@ -7,7 +7,7 @@
 
 - name: Create tempfile for host
   ansible.builtin.tempfile:
-    state: filed
+    state: file
     suffix: .pem
   register: build_connection_details_key_file
 
@@ -19,5 +19,4 @@
 
 - name: Share host connection details
   ansible.builtin.set_fact:
-    build_connection_details_ssh_private_key_file: "{{ build_connection_details_key_file.path }}"
-    # ansible_ssh_private_key_file: "{{ build_connection_details_key_file.path }}"
+    ansible_ssh_private_key_file: "{{ build_connection_details_key_file.path }}"

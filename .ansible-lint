@@ -8,3 +8,4 @@ use_default_rules: true
 skip_list:
   - experimental # Skip experimental rules
   - no-changed-when # Skip rules about changed_when usage
+  - var-naming[no-role-prefix]
