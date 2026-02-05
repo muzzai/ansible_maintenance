@@ -120,6 +120,11 @@
                  prometheus_status.status.ActiveState == 'active' and
                  prometheus_status.status.UnitFileState == 'enabled' }}
 
+        - name: Set system for Prometheus installation
+          ansible.builtin.set_fact:
+            system: linux
+          when: not prometheus_installed
+
         - name: Include Prometheus role
           ansible.builtin.include_role:
             name: prometheus.prometheus.prometheus
