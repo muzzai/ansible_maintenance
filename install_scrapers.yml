@@ -120,6 +120,11 @@
                  prometheus_status.status.ActiveState == 'active' and
                  prometheus_status.status.UnitFileState == 'enabled' }}
 
+        - name: Set system for Prometheus installation
+          ansible.builtin.set_fact:
+            system: linux
+          when: not prometheus_installed
+
         - name: Include Prometheus role
           ansible.builtin.include_role:
             name: prometheus.prometheus.prometheus
@@ -133,10 +138,6 @@
             prometheus_service_enable: true
             prometheus_service_state: started
             prometheus_agent_mode: true
-            prometheus_binary_url: "https://github.com/prometheus/prometheus/releases/download/v\
-              {{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
-            prometheus_local_cache_path: "/tmp/prometheus-linux-amd64/\
-              {{ prometheus_version }}"
           when: not prometheus_installed
 
       rescue:
