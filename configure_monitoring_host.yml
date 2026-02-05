@@ -30,7 +30,7 @@
           }}
       vars:
         name_suffix: >-
-          {{ item.tags.Name | regex_replace('.*\\(([^()]*)\\)$', '\\1') if '(' in item.tags.Name else '' }}
+          {{ (item.tags.Name | regex_search('\(([^()]*)\)\s*$'))[0] if (item.tags.Name | regex_search('\(([^()]*)\)\s*$')) is not none else '' }}
       loop: "{{ ec2_info.instances }}"
 
     - name: Check if port 445 is open on each instance
