@@ -18,6 +18,7 @@
             name: node_exporter
           register: node_exporter_status
           failed_when: false
+          become: true
 
         - name: Set node_exporter_installed fact
           ansible.builtin.set_fact:
@@ -37,6 +38,7 @@
           register: node_dl
           changed_when: node_dl.dest is defined
           when: not node_exporter_installed
+          become: true
 
         - name: Extract node_exporter and install binary
           ansible.builtin.unarchive:
@@ -44,6 +46,7 @@
             dest: /tmp
             remote_src: true
           when: node_dl is defined and not node_exporter_installed
+          become: true
 
         - name: Copy node_exporter binary to /usr/local/bin
           ansible.builtin.copy:
@@ -51,6 +54,7 @@
             dest: /usr/local/bin/node_exporter
             remote_src: true
             mode: "0755"
+          become: true
           when: node_dl is defined and not node_exporter_installed
 
         - name: Ensure node_exporter binary ownership
@@ -60,6 +64,7 @@
             group: node_exporter
             mode: "0755"
           when: not node_exporter_installed
+          become: true
 
         - name: Deploy node_exporter systemd unit file
           ansible.builtin.copy:
@@ -72,6 +77,7 @@
             - Daemon reload
             - Restart node_exporter
           when: not node_exporter_installed
+          become: true
 
         - name: Ensure node_exporter systemd service enabled and started
           ansible.builtin.systemd:
@@ -79,6 +85,7 @@
             enabled: true
             state: started
           when: not node_exporter_installed
+          become: true
 
         # Check Prometheus service status
         - name: Check if Prometheus service is installed, enabled, and running
@@ -86,6 +93,7 @@
             name: prometheus
           register: prometheus_status
           failed_when: false
+          become: true
 
         - name: Set prometheus_installed fact
           ansible.builtin.set_fact:
@@ -116,42 +124,49 @@
             name: node_exporter
             state: stopped
           ignore_errors: true
+          become: true
 
         - name: Remove node_exporter binary
           ansible.builtin.file:
             path: /usr/local/bin/node_exporter
             state: absent
           ignore_errors: true
+          become: true
 
         - name: Remove node_exporter archive
           ansible.builtin.file:
             path: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
             state: absent
           ignore_errors: true
+          become: true
 
         - name: Remove node_exporter extracted directory
           ansible.builtin.file:
             path: "/tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}"
             state: absent
           ignore_errors: true
+          become: true
 
         - name: Stop and remove Prometheus service
           ansible.builtin.systemd:
             name: prometheus
             state: stopped
           ignore_errors: true
+          become: true
 
         - name: Remove Prometheus data directory
           ansible.builtin.file:
             path: /var/lib/prometheus
             state: absent
           ignore_errors: true
+          become: true
 
         - name: Remove Prometheus config directory
           ansible.builtin.file:
             path: /etc/prometheus
             state: absent
           ignore_errors: true
+          become: true
 
       always:
         - name: Print playbook finished message
