@@ -23,10 +23,17 @@
               {
                 'id': item.instance_id,
                 'name': item.tags.Name | default(''),
-                'name_suffix': (item.tags.Name | regex_search('\\(([^()]*)\\)$') | default('')),
+                'name_suffix': name_suffix,
                 'internal_ip': item.network_interfaces[0].private_ip_address
               }
             ]
+          }}
+      vars:
+        name_suffix: >-
+          {{
+            (item.tags.Name | regex_search('\\(([^()]*)\\)$'))[0]
+            if (item.tags.Name | regex_search('\\(([^()]*)\\)$')) is not none
+            else None
           }}
       loop: "{{ ec2_info.instances }}"
 
