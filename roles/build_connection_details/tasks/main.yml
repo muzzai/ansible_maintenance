@@ -7,7 +7,7 @@
 
 - name: Create tempfile for host
   ansible.builtin.tempfile:
-    state: file
+    state: filed
     suffix: .pem
   register: build_connection_details_key_file
 

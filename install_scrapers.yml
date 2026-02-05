@@ -10,10 +10,7 @@
         - name: Include build_connection_details role
           ansible.builtin.include_role:
             name: build_connection_details
-          vars:
-            manage_secret_path: "linux/{{ hostvars[inventory_hostname]['instance_id'] }}"
 
-    # Check node_exporter service status
     - name: Check if node_exporter service is installed, enabled, and running
       ansible.builtin.systemd:
         name: node_exporter
@@ -80,7 +77,6 @@
         enabled: true
         state: started
       when: not node_exporter_installed
-
 
     # Check Prometheus service status
     - name: Check if Prometheus service is installed, enabled, and running

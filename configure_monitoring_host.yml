@@ -53,3 +53,5 @@
     - name: Show instances with port 445 open (confirmed by nmap)
       ansible.builtin.debug:
         var: instances_with_445_open
+
+
