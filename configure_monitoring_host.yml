@@ -14,7 +14,6 @@
       amazon.aws.ec2_instance_info:
         region: "{{ aws_region }}"
       register: ec2_info
-      delegate_to: localhost
 
     - name: Build list of instances with internal IP and parsed Name
       ansible.builtin.set_fact:
@@ -23,7 +22,8 @@
             instances_with_445 | default([]) + [
               {
                 'id': item.instance_id,
-                'name': (item.tags.Name | regex_search('\\(([^()]*)\\)$') | default('')),
+                'name': item.tags.Name | default(''),
+                'name_suffix': (item.tags.Name | regex_search('\\(([^()]*)\\)$') | default('')),
                 'internal_ip': item.network_interfaces[0].private_ip_address
               }
             ]
@@ -34,19 +34,14 @@
       ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
       register: nmap_result
       loop: "{{ instances_with_445 }}"
-      delegate_to: localhost
       changed_when: false
 
     - name: Filter instances where port 445 is open
       ansible.builtin.set_fact:
         instances_with_445_open: >-
           {{
-            instances_with_445_open | default([]) +
-            [instances_with_445[loop.index0]]
-            if '445/tcp open' in item.stdout else
-            instances_with_445_open | default([])
+            instances_with_445 | zip(nmap_result.results) | selectattr('1.stdout', 'search', '445/tcp open') | map(attribute='0') | list
           }}
-      loop: "{{ nmap_result.results }}"
 
     - name: Show instances with port 445 open (confirmed by nmap)
       ansible.builtin.debug:
