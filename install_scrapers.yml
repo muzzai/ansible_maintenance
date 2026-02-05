@@ -133,6 +133,7 @@
             prometheus_service_enable: true
             prometheus_service_state: started
             prometheus_agent_mode: true
+            prometheus_binary_url: "https://github.com/prometheus/prometheus/releases/download/v{{ prometheus_version }}/prometheus-{{ prometheus_version }}.linux-amd64.tar.gz"
           when: not prometheus_installed
 
       rescue:
