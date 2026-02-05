@@ -3,7 +3,7 @@
     name: manage_secret
   vars:
     manage_secret_action: get
-    manage_secret_path: "windows/{{ hostvars[inventory_hostname]['instance_id'] }}"
+    manage_secret_path: "linux/{{ hostvars[inventory_hostname]['instance_id'] }}"
 
 - name: Create tempfile for host
   ansible.builtin.tempfile:

@@ -22,11 +22,12 @@ scrape_configs:
     - source_labels: [__meta_ec2_private_ip]
       target_label: private_ip
 
-- job_name: 'monitoring_node_exporter'
+
+- job_name: 'monitoring_node_exporter{% if deploy_environment == "testing" %}_testing{% endif %}'
   static_configs:
     - targets:
         - 'localhost:9100'
 
   relabel_configs:
     - target_label: instance
-      replacement: '{{ aws_region }}-exporter'
+      replacement: '{{ aws_region }}-exporter{% if deploy_environment == "testing" %}_testing{% endif %}'

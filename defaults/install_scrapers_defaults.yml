@@ -1,0 +1,6 @@
+aws_region: ""
+deploy_user: ec2-user
+deploy_dir: /home/ec2-user
+node_exporter_version: "1.10.2"
+node_exporter_arch: "linux-amd64"
+deploy_environment: "testing"

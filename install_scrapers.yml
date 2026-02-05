@@ -1,0 +1,128 @@
+- name: Install prometheus and node_exporter on monitoring hosts
+  hosts: monitoring_hosts
+  vars_files:
+    - defaults/install_scrapers_defaults.yml
+  tasks:
+
+    - name: Build connection details for monitoring hosts
+      delegate_to: localhost
+      block:
+        - name: Include build_connection_details role
+          ansible.builtin.include_role:
+            name: build_connection_details
+          vars:
+            manage_secret_path: "linux/{{ hostvars[inventory_hostname]['instance_id'] }}"
+
+    # Check node_exporter service status
+    - name: Check if node_exporter service is installed, enabled, and running
+      ansible.builtin.systemd:
+        name: node_exporter
+      register: node_exporter_status
+      failed_when: false
+
+    - name: Set node_exporter_installed fact
+      ansible.builtin.set_fact:
+        node_exporter_installed: >-
+          {{ node_exporter_status.status is defined and
+             node_exporter_status.status.LoadState == 'loaded' and
+             node_exporter_status.status.ActiveState == 'active' and
+             node_exporter_status.status.UnitFileState == 'enabled' }}
+
+    - name: Download node_exporter archive
+      ansible.builtin.get_url:
+        url: >-
+          https://github.com/prometheus/node_exporter/releases/download/
+          v{{ node_exporter_version }}/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}.tar.gz
+        dest: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+        mode: "0644"
+      register: node_dl
+      changed_when: node_dl.dest is defined
+      when: not node_exporter_installed
+
+    - name: Extract node_exporter and install binary
+      ansible.builtin.unarchive:
+        src: "/tmp/node_exporter-{{ node_exporter_version }}.tar.gz"
+        dest: /tmp
+        remote_src: true
+      when: node_dl is defined and not node_exporter_installed
+
+    - name: Copy node_exporter binary to /usr/local/bin
+      ansible.builtin.copy:
+        src: >-
+          /tmp/node_exporter-{{ node_exporter_version }}.{{ node_exporter_arch }}/node_exporter
+        dest: /usr/local/bin/node_exporter
+        mode: "0755"
+      when: node_dl is defined and not node_exporter_installed
+
+    - name: Ensure node_exporter binary ownership
+      ansible.builtin.file:
+        path: /usr/local/bin/node_exporter
+        owner: node_exporter
+        group: node_exporter
+        mode: "0755"
+      when: not node_exporter_installed
+
+    - name: Deploy node_exporter systemd unit file
+      ansible.builtin.copy:
+        src: "monitoring_files/node_exporter.service"
+        dest: "/etc/systemd/system/node_exporter.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Daemon reload
+        - Restart node_exporter
+      when: not node_exporter_installed
+
+    - name: Ensure node_exporter systemd service enabled and started
+      ansible.builtin.systemd:
+        name: node_exporter
+        enabled: true
+        state: started
+      when: not node_exporter_installed
+
+
+    # Check Prometheus service status
+    - name: Check if Prometheus service is installed, enabled, and running
+      ansible.builtin.systemd:
+        name: prometheus
+      register: prometheus_status
+      failed_when: false
+
+    - name: Set prometheus_installed fact
+      ansible.builtin.set_fact:
+        prometheus_installed: >-
+          {{ prometheus_status.status is defined and
+             prometheus_status.status.LoadState == 'loaded' and
+             prometheus_status.status.ActiveState == 'active' and
+             prometheus_status.status.UnitFileState == 'enabled' }}
+
+    - name: Include Prometheus role
+      ansible.builtin.include_role:
+        name: prometheus.prometheus.prometheus
+      vars:
+        prometheus_version: "2.45.0"
+        prometheus_config_file: templates/config.yml.j2
+        prometheus_user: prometheus
+        prometheus_group: prometheus
+        prometheus_data_dir: /var/lib/prometheus
+        prometheus_config_dir: /etc/prometheus
+        prometheus_service_enable: true
+        prometheus_service_state: started
+        prometheus_agent_mode: true
+      when: not prometheus_installed
+
+  handlers:
+    - name: Daemon reload
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart Prometheus
+      ansible.builtin.systemd:
+        name: prometheus
+        state: restarted
+
+    - name: Restart node_exporter
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: restarted
