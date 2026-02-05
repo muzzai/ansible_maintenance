@@ -118,7 +118,7 @@
           ansible.builtin.debug:
             msg:
               - "Instance info: {{ ec2_result.instances }}"
-              - "Elastic IP: {{ (associate_eip | bool) | ternary(eip_result.eip.public_ip, 'Not associated') }}"
+              - "Elastic IP: {{ (associate_eip | bool) | ternary(eip_result, 'Not associated') }}"
       rescue:
         - name: Delete EC2 key pair if created
           amazon.aws.ec2_key:
