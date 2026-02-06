@@ -163,8 +163,15 @@
                  fluent_bit_status.status.LoadState == 'loaded' and
                  fluent_bit_status.status.UnitFileState == 'enabled' }}
 
+        - name: Add fluent-bit repository
+          ansible.builtin.copy:
+            dest: /etc/yum.repos.d/fluent-bit.repo
+            src: templates/fluent-bit.repo
+          become: true
+          when: not fluent_bit_installed
+
         - name: Install fluent-bit package
-          ansible.builtin.dnf:
+          ansible.builtin.package:
             name: fluent-bit
             state: present
           become: true
