@@ -179,7 +179,7 @@
 
         - name: Deploy fluent-bit configuration
           ansible.builtin.template:
-            src: fluent-bit.yml.j2
+            src: fluent-bit.yaml.j2
             dest: /etc/fluent-bit/fluent-bit.yaml
             owner: root
             group: root
