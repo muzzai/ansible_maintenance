@@ -71,8 +71,8 @@
 
     - name: Create fluent-bit configuration file with dynamic inputs
       ansible.builtin.template:
-        src: fluent-bit.yml.j2
-        dest: /etc/fluent-bit/fluent-bit.yml
+        src: fluent-bit.yaml.j2
+        dest: /etc/fluent-bit/fluent-bit.yaml
         mode: "0644"
         force: true
       become: true
