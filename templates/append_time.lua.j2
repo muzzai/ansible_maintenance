@@ -1,0 +1,26 @@
+local ip_to_name = {
+    {% for instance in instances_with_445_open %}
+    ["{{ instance.internal_ip }}"] = "{{ instance.name_suffix }}",
+    {% endfor %}
+}
+
+local function map_instance_name(ip)
+    if not ip then return nil end
+    return ip_to_name[ip]
+end
+
+function append_time(tag, timestamp, record)
+    if record.log and type(record.log) == "string" and string.sub(record.log, 1, 1) == "#" then
+    return -1, timestamp, record
+    end
+    if record["datetime"] then
+    record["@timestamp"] = record["datetime"] .. "Z"
+    end
+    record["log_type"] = "iis"
+    local server_ip = record["s_ip"] or record["server_ip"]
+    local inst_name = map_instance_name(server_ip)
+    if inst_name then
+    record["instance"] = inst_name
+    end
+    return 1, timestamp, record
+end

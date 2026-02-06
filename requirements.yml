@@ -10,5 +10,3 @@ collections:
     version: ">=11.4.1"
   - name: prometheus.prometheus
     version: ">=0.27.0"
-roles:
-  - name: bimdata.fluentbit

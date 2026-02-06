@@ -161,17 +161,31 @@
             fluent_bit_installed: >-
               {{ fluent_bit_status.status is defined and
                  fluent_bit_status.status.LoadState == 'loaded' and
-                 fluent_bit_status.status.ActiveState == 'active' and
                  fluent_bit_status.status.UnitFileState == 'enabled' }}
 
-        - name: Install fluent-bit using role
-          ansible.builtin.include_role:
-            name: bimdata.fluentbit
-          vars:
-            fluent_bit_version: "2.0.12"
-            fluent_bit_config_file: templates/fluent-bit.conf.j2
-            fluent_bit_service_enable: true
-            fluent_bit_service_state: started
+        - name: Install fluent-bit package
+          ansible.builtin.dnf:
+            name: fluent-bit
+            state: present
+          become: true
+          when: not fluent_bit_installed
+
+        - name: Deploy fluent-bit configuration
+          ansible.builtin.template:
+            src: templates/fluent-bit.yml.j2
+            dest: /etc/fluent-bit/fluent-bit.yaml
+            owner: root
+            group: root
+            mode: "0644"
+          become: true
+          when: not fluent_bit_installed
+
+        - name: Ensure fluent-bit service is enabled but not started
+          ansible.builtin.systemd:
+            name: fluent-bit
+            enabled: true
+            state: stopped
+          become: true
           when: not fluent_bit_installed
 
       rescue:

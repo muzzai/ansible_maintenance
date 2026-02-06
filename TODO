@@ -1,0 +1,4 @@
+TODO:
+finish fluent-bit configuration
+plan workflows for re-sync and re-configure scrapers
+deploy a prod host
