@@ -99,6 +99,15 @@
         state: mounted
       loop: "{{ instances_with_445_open }}"
       become: true
+      register: mount_results
+      ignore_errors: true
+
+    - name: Log failed mounts
+      ansible.builtin.debug:
+        msg: "Failed to mount //{{ item.item.internal_ip }}/LogFiles on /mnt/{{ item.item.name_suffix }}: {{ item.msg | default('unknown error') }}"
+      loop: "{{ mount_results.results | selectattr('failed', 'true') | list }}"
+      loop_control:
+        label: "/mnt/{{ item.item.name_suffix }}"
 
     - name: Reboot host to ensure mounts are active and fluent-bit can read logs
       ansible.builtin.reboot:

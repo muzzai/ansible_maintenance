@@ -187,10 +187,23 @@
           become: true
           when: not fluent_bit_installed
 
+        - name: Deploy fluent-bit systemd unit file
+          ansible.builtin.copy:
+            src: fluent-bit.service
+            dest: /etc/systemd/system/fluent-bit.service
+            owner: root
+            group: root
+            mode: "0644"
+          notify:
+            - Daemon reload
+          become: true
+          when: not fluent_bit_installed
+
         - name: Ensure fluent-bit service is enabled but not started
           ansible.builtin.systemd:
             name: fluent-bit
             enabled: true
+            daemon_reload: true
             state: stopped
           become: true
           when: not fluent_bit_installed
