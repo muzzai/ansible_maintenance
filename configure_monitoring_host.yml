@@ -84,12 +84,18 @@
       become: true
       notify: Restart fluent-bit
 
+    - name: Ensure cifs-utils is installed
+      ansible.builtin.package:
+        name: cifs-utils
+        state: present
+      become: true
+
     - name: Mount CIFS log shares
       ansible.posix.mount:
         src: "//{{ item.internal_ip }}/LogFiles"
         path: "/mnt/{{ item.name_suffix }}"
         fstype: cifs
-        opts: "credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,nofail,x-systemd.idle-timeout=20s"
+        opts: "ro,credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,nofail,x-systemd.idle-timeout=20s"
         state: mounted
       loop: "{{ instances_with_445_open }}"
       become: true
