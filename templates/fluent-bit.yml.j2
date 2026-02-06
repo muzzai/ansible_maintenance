@@ -13,26 +13,27 @@ service:
   storage.metrics: on
 
 pipeline:
-  inputs:
-    {% for input in inputs %}
+  inputs:  
+    {% for instance in instances_with_445_open %}
     - name: tail
       ignore_older: 48h
       tag: iis.logs
-      path: "/mnt/{{ input }}/W3SVC*/*.log"
+      path: "/mnt/{{ instance.name_suffix }}/W3SVC*/*.log"
       parser: iis_parser
-      db: "/var/lib/fluent-bit/iis-all.db"
+      db: "/var/lib/fluent-bit/iis-{{ instance.name_suffix }}.db"
       db.sync: normal
       storage.type: filesystem
       mem_buf_limit: 64MB
       inotify_watcher: false
       read_from_head: false
+      refresh_interval: 60
       buffer_chunk_size: 128KB
       buffer_max_size: 256KB
     {% endfor %}
   filters:
     - name: lua
       match: iis.logs
-      script: append_time_corrected.lua
+      script: append_time.lua
       call: append_time
 
     - name: modify

@@ -50,3 +50,58 @@
     - name: Show instances with port 445 open (confirmed by nmap)
       ansible.builtin.debug:
         var: instances_with_445_open
+
+- name: Configure monitoring host
+  hosts: monitoring_hosts
+  gather_facts: false
+  vars_files:
+    - defaults/install_scrapers_defaults.yml
+  vars:
+    instances_with_445_open: "{{ hostvars['localhost']['instances_with_445_open'] | default([]) }}"
+  tasks:
+    - name: Build connection details for monitoring hosts
+      delegate_to: localhost
+      block:
+        - name: Include build_connection_details role
+          ansible.builtin.include_role:
+            name: build_connection_details
+
+    - name: Create fluent-bit configuration file with dynamic inputs
+      ansible.builtin.template:
+        src: fluent-bit.yml.j2
+        dest: /etc/fluent-bit/fluent-bit.yml
+        mode: "0644"
+        force: true
+      become: true
+      notify: Restart fluent-bit
+
+    - name: Add lua script for appending time to records
+      ansible.builtin.template:
+        src: append_time.lua.j2
+        dest: /etc/fluent-bit/append_time.lua
+        mode: "0644"
+        force: true
+      become: true
+      notify: Restart fluent-bit
+
+    - name: Mount CIFS log shares
+      ansible.posix.mount:
+        src: "//{{ item.internal_ip }}/LogFiles"
+        path: "/mnt/{{ item.name_suffix }}"
+        fstype: cifs
+        opts: "credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,nofail,x-systemd.idle-timeout=20s"
+        state: mounted
+      loop: "{{ instances_with_445_open }}"
+      become: true
+
+    - name: Reboot host to ensure mounts are active and fluent-bit can read logs
+      ansible.builtin.reboot:
+        reboot_timeout: 300
+      become: true
+
+  handlers:
+    - name: Restart fluent-bit
+      ansible.builtin.systemd:
+        name: fluent-bit
+        state: restarted
+      become: true

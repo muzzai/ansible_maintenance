@@ -8,5 +8,7 @@ collections:
     version: ">=2.17.0"
   - name: community.general
     version: ">=11.4.1"
+  - name: ansible.posix
+    version: ">=1.6.0"
   - name: prometheus.prometheus
     version: ">=0.27.0"

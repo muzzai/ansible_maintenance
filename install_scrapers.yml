@@ -92,7 +92,7 @@
 
         - name: Deploy node_exporter systemd unit file
           ansible.builtin.copy:
-            src: "templates/node_exporter.service"
+            src: "node_exporter.service"
             dest: "/etc/systemd/system/node_exporter.service"
             owner: root
             group: root
@@ -166,7 +166,7 @@
         - name: Add fluent-bit repository
           ansible.builtin.copy:
             dest: /etc/yum.repos.d/fluent-bit.repo
-            src: templates/fluent-bit.repo
+            src: fluent-bit.repo
           become: true
           when: not fluent_bit_installed
 
@@ -179,7 +179,7 @@
 
         - name: Deploy fluent-bit configuration
           ansible.builtin.template:
-            src: templates/fluent-bit.yml.j2
+            src: fluent-bit.yml.j2
             dest: /etc/fluent-bit/fluent-bit.yaml
             owner: root
             group: root

@@ -1,5 +1,4 @@
 ---
-manage_secret_action: get
 manage_secret_vault_addr: "{{ lookup('env', 'VAULT_ADDR') | default('', true) }}"
 manage_secret_vault_role_id: "{{ lookup('env', 'VAULT_ROLE_ID') | default('', true) }}"
 manage_secret_vault_secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') | default('', true) }}"

@@ -28,39 +28,42 @@
     dest: "{{ manage_secret_temp_ca_cert.path }}"
     mode: "600"
 
-- name: Store SSH secret
-  community.hashi_vault.vault_kv2_write:
-    url: "{{ manage_secret_vault_addr }}"
-    auth_method: approle
-    role_id: "{{ manage_secret_vault_role_id }}"
-    secret_id: "{{ manage_secret_vault_secret_id }}"
-    path: "{{ manage_secret_path }}"
-    engine_mount_point: "{{ manage_secret_vault_kv_mount }}"
-    data: "{{ manage_secret_payload }}"
-    ca_cert: "{{ manage_secret_temp_ca_cert.path }}"
-    validate_certs: true
-  when: manage_secret_action == 'write'
-  register: manage_secret_vault_write_result
+- name: Perform Vault operations
+  block:
+    - name: Store SSH secret
+      community.hashi_vault.vault_kv2_write:
+        url: "{{ manage_secret_vault_addr }}"
+        auth_method: approle
+        role_id: "{{ manage_secret_vault_role_id }}"
+        secret_id: "{{ manage_secret_vault_secret_id }}"
+        path: "{{ manage_secret_path }}"
+        engine_mount_point: "{{ manage_secret_vault_kv_mount }}"
+        data: "{{ manage_secret_payload }}"
+        ca_cert: "{{ manage_secret_temp_ca_cert.path }}"
+        validate_certs: true
+      when: manage_secret_action == 'write'
+      register: manage_secret_vault_write_result
 
-- name: Fetch SSH private key from Vault
-  community.hashi_vault.vault_kv2_get:
-    url: "{{ manage_secret_vault_addr }}"
-    auth_method: approle
-    role_id: "{{ manage_secret_vault_role_id }}"
-    secret_id: "{{ manage_secret_vault_secret_id }}"
-    path: "{{ manage_secret_path }}"
-    engine_mount_point: "{{ manage_secret_vault_kv_mount }}"
-    ca_cert: "{{ manage_secret_temp_ca_cert.path }}"
-    validate_certs: true
-  when: manage_secret_action == 'get'
-  register: manage_secret_data
+    - name: Fetch SSH private key from Vault
+      community.hashi_vault.vault_kv2_get:
+        url: "{{ manage_secret_vault_addr }}"
+        auth_method: approle
+        role_id: "{{ manage_secret_vault_role_id }}"
+        secret_id: "{{ manage_secret_vault_secret_id }}"
+        path: "{{ manage_secret_path }}"
+        engine_mount_point: "{{ manage_secret_vault_kv_mount }}"
+        ca_cert: "{{ manage_secret_temp_ca_cert.path }}"
+        validate_certs: true
+      when: manage_secret_action == 'get'
+      register: manage_secret_data
 
-- name: Set fact with retrieved secret data
-  ansible.builtin.set_fact:
-    manage_secret_retrieved_data: "{{ manage_secret_data.data }}"
-  when: manage_secret_action == 'get'
+    - name: Set fact with retrieved secret data
+      ansible.builtin.set_fact:
+        manage_secret_retrieved_data: "{{ manage_secret_data.data }}"
+      when: manage_secret_action == 'get'
 
-- name: Clean up temporary CA certificate file
-  ansible.builtin.file:
-    path: "{{ manage_secret_temp_ca_cert.path }}"
-    state: absent
+  always:
+    - name: Clean up temporary CA certificate file
+      ansible.builtin.file:
+        path: "{{ manage_secret_temp_ca_cert.path }}"
+        state: absent
