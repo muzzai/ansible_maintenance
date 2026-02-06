@@ -33,6 +33,9 @@
         name_suffix: >-
           {{ instance_name | regex_replace('.*\(([^()]*)\)\s*$', '\1') if '(' in instance_name else '' }}
       loop: "{{ ec2_info.instances }}"
+      when:
+        - item.network_interfaces | length > 0
+        - item.tags.Name is defined
 
     - name: Check if port 445 is open on each instance
       ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
