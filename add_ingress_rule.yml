@@ -42,6 +42,8 @@
             cidr_ip: "{{ source_ip }}"
         rules_egress: []
         state: present
+        name: "Allow {{ protocol.upper() }} {{ port }} from {{ source_ip }}"
+        description: "Added by Ansible for instance {{ instance_id }}"
       loop: "{{ instance_security_group_ids }}"
 
     - name: Show target instance private IP
