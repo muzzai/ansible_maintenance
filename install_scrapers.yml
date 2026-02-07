@@ -147,8 +147,6 @@
             prometheus_agent_mode: true
           when: not prometheus_installed
 
-
-        
       rescue:
         - name: Stop and remove node_exporter service
           ansible.builtin.systemd:
@@ -208,13 +206,16 @@
     - name: Daemon reload
       ansible.builtin.systemd:
         daemon_reload: true
+      become: true
 
     - name: Restart Prometheus
       ansible.builtin.systemd:
         name: prometheus
         state: restarted
+      become: true
 
     - name: Restart node_exporter
       ansible.builtin.systemd:
         name: node_exporter
         state: restarted
+      become: true
