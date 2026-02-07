@@ -102,7 +102,7 @@
     - name: Create fluent-bit configuration file with dynamic inputs
       ansible.builtin.template:
         src: fluent-bit.yaml.j2
-        dest: /etc/fluent-bit/fluent-bit.yaml
+        dest: /etc/systemd/system/fluent-bit/fluent-bit.yaml
         mode: "0644"
         force: true
       become: true
@@ -111,7 +111,7 @@
     - name: Add lua script for appending time to records
       ansible.builtin.template:
         src: append_time.lua.j2
-        dest: /etc/fluent-bit/append_time.lua
+        dest: /etc/systemd/systemw/fluent-bit/append_time.lua
         mode: "0644"
         force: true
       become: true
