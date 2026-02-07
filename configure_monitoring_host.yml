@@ -99,17 +99,19 @@
       become: true
       when: not fluent_bit_installed
 
-    - name: Create fluent-bit directory
-      ansible.builtin.file:
-        path: /etc/systemd/system
-        state: directory
-        mode: "0755"
-      become: true
-
     - name: Create fluent-bit service file
       ansible.builtin.template:
         src: files/fluent-bit.service
         dest: /etc/systemd/system/fluent-bit.service
+        mode: "0644"
+        force: true
+      become: true
+      notify: Restart fluent-bit
+
+    - name: Add fluent-bit configuration    --- IGNORE ---
+      ansible.builtin.template:
+        src: templates/fluent-bit.yaml.j2
+        dest: /etc/fluent-bit/fluent-bit.yaml
         mode: "0644"
         force: true
       become: true
