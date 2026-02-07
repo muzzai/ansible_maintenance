@@ -87,6 +87,16 @@
       become: true
       notify: Restart fluent-bit
 
+    - name: Add smbcreds file for CIFS mounts
+      ansible.builtin.copy:
+        content: |
+          username={{ smb_username }}
+          password={{ smb_password }}
+        dest: /root/.smbcreds
+        mode: "0600"
+        force: true
+      become: true
+
     - name: Ensure cifs-utils is installed
       ansible.builtin.package:
         name: cifs-utils
