@@ -1,7 +1,6 @@
 ---
 - name: Debug Vault Connection
   hosts: localhost
-  connection: local
   gather_facts: false
 
   vars:
