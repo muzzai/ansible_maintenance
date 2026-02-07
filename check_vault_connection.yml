@@ -40,7 +40,7 @@
         role_id: "{{ vault_role_id }}"
         secret_id: "{{ vault_secret_id }}"
         ca_cert: "{{ temp_ca_cert.path }}"
-        validate_certs: true
+        validate_certs: false
       register: vault_login_result
 
     - name: Display Vault connection status
