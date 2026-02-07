@@ -58,7 +58,7 @@
   hosts: monitoring_hosts
   gather_facts: false
   vars_files:
-    - defaults/install_scrapers_defaults.yml
+    - defaults/create_linux_ec2_instance_defaults.yml
   vars:
     instances_with_445_open: "{{ hostvars['localhost']['instances_with_445_open'] | default([]) }}"
   tasks:
