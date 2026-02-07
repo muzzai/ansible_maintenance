@@ -14,7 +14,7 @@ service:
 
 pipeline:
   inputs:
-{%- for instance in instances_with_445_open %}
+{% for instance in instances_with_445_open %}
     - name: tail
       ignore_older: 48h
       tag: iis.logs
@@ -29,7 +29,7 @@ pipeline:
       refresh_interval: 60
       buffer_chunk_size: 128KB
       buffer_max_size: 256KB
-{%- endfor %}
+{% endfor %}
   filters:
     - name: lua
       match: iis.logs
