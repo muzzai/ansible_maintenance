@@ -1,0 +1,55 @@
+---
+- name: Check Vault Connection
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    vault_addr: "{{ lookup('env', 'VAULT_ADDR') }}"
+    vault_role_id: "{{ lookup('env', 'VAULT_ROLE_ID') }}"
+    vault_secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') }}"
+    vault_ca_cert_pem: "{{ lookup('env', 'VAULT_CA_CERT_PEM') }}"
+
+  tasks:
+    - name: Validate required environment variables
+      ansible.builtin.assert:
+        that:
+          - vault_addr | length > 0
+          - vault_role_id | length > 0
+          - vault_secret_id | length > 0
+          - vault_ca_cert_pem | length > 0
+        fail_msg: >-
+          Missing required environment variables. Ensure VAULT_ADDR,
+          VAULT_ROLE_ID, VAULT_SECRET_ID, and VAULT_CA_CERT_PEM are set.
+
+    - name: Create temporary CA certificate file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .crt
+      register: temp_ca_cert
+
+    - name: Write CA certificate to temporary file
+      ansible.builtin.copy:
+        content: "{{ vault_ca_cert_pem }}"
+        dest: "{{ temp_ca_cert.path }}"
+        mode: "0600"
+
+    - name: Authenticate to Vault via AppRole
+      community.hashi_vault.vault_login:
+        url: "{{ vault_addr }}"
+        auth_method: approle
+        role_id: "{{ vault_role_id }}"
+        secret_id: "{{ vault_secret_id }}"
+        ca_cert: "{{ temp_ca_cert.path }}"
+        validate_certs: true
+      register: vault_login_result
+
+    - name: Display Vault connection status
+      ansible.builtin.debug:
+        msg: "Successfully connected and authenticated to Vault at {{ vault_addr }}"
+
+    - name: Clean up temporary CA certificate file
+      ansible.builtin.file:
+        path: "{{ temp_ca_cert.path }}"
+        state: absent
+      when: temp_ca_cert.path is defined
