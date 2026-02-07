@@ -1,0 +1,220 @@
+---
+- name: Debug Vault Connection
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    vault_addr: "{{ lookup('env', 'VAULT_ADDR') }}"
+    vault_role_id: "{{ lookup('env', 'VAULT_ROLE_ID') }}"
+    vault_secret_id: "{{ lookup('env', 'VAULT_SECRET_ID') }}"
+    vault_ca_cert_pem: "{{ lookup('env', 'VAULT_CA_CERT_PEM') }}"
+    vault_kv_mount: "secret"
+    vault_test_path: "debug/test-connection"
+
+  tasks:
+    # ── Step 1: Dump all env vars and their values ──
+    - name: Display raw environment variables
+      ansible.builtin.debug:
+        msg:
+          VAULT_ADDR: "{{ vault_addr }}"
+          VAULT_ADDR_length: "{{ vault_addr | length }}"
+          VAULT_ROLE_ID: "{{ vault_role_id }}"
+          VAULT_ROLE_ID_length: "{{ vault_role_id | length }}"
+          VAULT_SECRET_ID: "{{ vault_secret_id }}"
+          VAULT_SECRET_ID_length: "{{ vault_secret_id | length }}"
+          VAULT_CA_CERT_PEM_set: "{{ (vault_ca_cert_pem | length > 0) | string }}"
+          VAULT_CA_CERT_PEM_length: "{{ vault_ca_cert_pem | length }}"
+          VAULT_CA_CERT_PEM_first_50_chars: "{{ vault_ca_cert_pem[:50] }}"
+
+    # ── Step 2: Check for hidden characters / whitespace ──
+    - name: Check for whitespace issues in credentials
+      ansible.builtin.debug:
+        msg:
+          vault_addr_stripped: "'{{ vault_addr | trim }}'"
+          vault_addr_raw: "'{{ vault_addr }}'"
+          vault_addr_has_whitespace: "{{ vault_addr != vault_addr | trim }}"
+          role_id_stripped: "'{{ vault_role_id | trim }}'"
+          role_id_raw: "'{{ vault_role_id }}'"
+          role_id_has_whitespace: "{{ vault_role_id != vault_role_id | trim }}"
+          secret_id_stripped: "'{{ vault_secret_id | trim }}'"
+          secret_id_raw: "'{{ vault_secret_id }}'"
+          secret_id_has_whitespace: "{{ vault_secret_id != vault_secret_id | trim }}"
+
+    # ── Step 3: Validate URL scheme ──
+    - name: Check VAULT_ADDR has proper URL scheme
+      ansible.builtin.debug:
+        msg:
+          has_https: "{{ vault_addr is match('^https://') }}"
+          has_http: "{{ vault_addr is match('^http://') }}"
+          warning: "{{ 'VAULT_ADDR is missing https:// scheme!' if not vault_addr is match('^https?://') else 'OK' }}"
+
+    # ── Step 4: Write CA cert and verify it ──
+    - name: Create temporary CA certificate file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .crt
+      register: temp_ca_cert
+
+    - name: Write CA certificate to temporary file
+      ansible.builtin.copy:
+        content: "{{ vault_ca_cert_pem }}"
+        dest: "{{ temp_ca_cert.path }}"
+        mode: "0600"
+
+    - name: Verify CA cert file content
+      ansible.builtin.command:
+        cmd: "openssl x509 -in {{ temp_ca_cert.path }} -noout -subject -dates"
+      register: ca_cert_info
+      ignore_errors: true
+
+    - name: Display CA cert info
+      ansible.builtin.debug:
+        msg:
+          ca_cert_path: "{{ temp_ca_cert.path }}"
+          ca_cert_valid: "{{ ca_cert_info.rc == 0 }}"
+          ca_cert_details: "{{ ca_cert_info.stdout_lines | default(['Failed to parse cert']) }}"
+          ca_cert_error: "{{ ca_cert_info.stderr | default('') }}"
+
+    # ── Step 5: Test network connectivity ──
+    - name: Extract host and port from VAULT_ADDR
+      ansible.builtin.set_fact:
+        vault_host: "{{ vault_addr | regex_replace('^https?://', '') | regex_replace(':[0-9]+$', '') }}"
+        vault_port: "{{ vault_addr | regex_replace('^.*:', '') | regex_replace('/.*$', '') }}"
+
+    - name: Test TCP connectivity to Vault
+      ansible.builtin.wait_for:
+        host: "{{ vault_host }}"
+        port: "{{ vault_port }}"
+        timeout: 5
+      register: tcp_test
+      ignore_errors: true
+
+    - name: Display TCP connectivity result
+      ansible.builtin.debug:
+        msg:
+          host: "{{ vault_host }}"
+          port: "{{ vault_port }}"
+          reachable: "{{ tcp_test is success }}"
+          error: "{{ tcp_test.msg | default('') }}"
+
+    # ── Step 6: Try curl to Vault health endpoint ──
+    - name: Check Vault health endpoint via URI
+      ansible.builtin.uri:
+        url: "{{ vault_addr }}/v1/sys/health"
+        method: GET
+        ca_path: "{{ temp_ca_cert.path }}"
+        validate_certs: true
+        status_code: [200, 429, 472, 473, 501, 503]
+      register: vault_health
+      ignore_errors: true
+
+    - name: Display Vault health status
+      ansible.builtin.debug:
+        msg:
+          health_check_success: "{{ vault_health is success }}"
+          status_code: "{{ vault_health.status | default('N/A') }}"
+          response: "{{ vault_health.json | default('No response') }}"
+          error: "{{ vault_health.msg | default('') }}"
+
+    # ── Step 7: Attempt AppRole login ──
+    - name: Attempt AppRole login
+      community.hashi_vault.vault_login:
+        url: "{{ vault_addr }}"
+        auth_method: approle
+        role_id: "{{ vault_role_id }}"
+        secret_id: "{{ vault_secret_id }}"
+        ca_cert: "{{ temp_ca_cert.path }}"
+        validate_certs: true
+      register: vault_login_result
+      ignore_errors: true
+
+    - name: Display login result
+      ansible.builtin.debug:
+        msg:
+          login_success: "{{ vault_login_result is success }}"
+          token_type: "{{ vault_login_result.login.auth.token_type | default('N/A') }}"
+          token_policies: "{{ vault_login_result.login.auth.token_policies | default('N/A') }}"
+          lease_duration: "{{ vault_login_result.login.auth.lease_duration | default('N/A') }}"
+          error: "{{ vault_login_result.msg | default('') }}"
+      when: vault_login_result is success
+
+    - name: Display login failure details
+      ansible.builtin.debug:
+        msg:
+          login_success: false
+          error_msg: "{{ vault_login_result.msg | default('Unknown error') }}"
+          hint: >-
+            Check that role_id and secret_id are correct and not expired.
+            Run on Vault server: vault write auth/approle/role/<name>/secret-id/lookup secret_id="{{ vault_secret_id }}"
+      when: vault_login_result is failed
+
+    # ── Step 8: Write a dummy secret (only if login succeeded) ──
+    - name: Write dummy test secret to Vault
+      community.hashi_vault.vault_kv2_write:
+        url: "{{ vault_addr }}"
+        auth_method: approle
+        role_id: "{{ vault_role_id }}"
+        secret_id: "{{ vault_secret_id }}"
+        path: "{{ vault_test_path }}"
+        engine_mount_point: "{{ vault_kv_mount }}"
+        data:
+          test_key: "debug_test_value"
+          timestamp: "{{ ansible_date_time.iso8601 | default('unknown') }}"
+        ca_cert: "{{ temp_ca_cert.path }}"
+        validate_certs: true
+      register: vault_write_result
+      ignore_errors: true
+      when: vault_login_result is success
+
+    - name: Display write result
+      ansible.builtin.debug:
+        msg:
+          write_success: "{{ vault_write_result is success }}"
+          path: "{{ vault_kv_mount }}/{{ vault_test_path }}"
+          result: "{{ vault_write_result.data | default('N/A') }}"
+          error: "{{ vault_write_result.msg | default('') }}"
+      when: vault_login_result is success
+
+    # ── Step 9: Read back the dummy secret ──
+    - name: Read back dummy test secret from Vault
+      community.hashi_vault.vault_kv2_get:
+        url: "{{ vault_addr }}"
+        auth_method: approle
+        role_id: "{{ vault_role_id }}"
+        secret_id: "{{ vault_secret_id }}"
+        path: "{{ vault_test_path }}"
+        engine_mount_point: "{{ vault_kv_mount }}"
+        ca_cert: "{{ temp_ca_cert.path }}"
+        validate_certs: true
+      register: vault_read_result
+      ignore_errors: true
+      when: vault_write_result is defined and vault_write_result is success
+
+    - name: Display read result
+      ansible.builtin.debug:
+        msg:
+          read_success: "{{ vault_read_result is success }}"
+          data: "{{ vault_read_result.data | default('N/A') }}"
+          error: "{{ vault_read_result.msg | default('') }}"
+      when: vault_read_result is defined
+
+    # ── Step 10: Summary ──
+    - name: "=== DEBUG SUMMARY ==="
+      ansible.builtin.debug:
+        msg:
+          "1_vault_addr": "{{ vault_addr }}"
+          "2_url_scheme_ok": "{{ vault_addr is match('^https?://') }}"
+          "3_tcp_reachable": "{{ tcp_test is success }}"
+          "4_ca_cert_valid": "{{ ca_cert_info.rc | default(1) == 0 }}"
+          "5_health_check": "{{ vault_health.status | default('FAILED') }}"
+          "6_approle_login": "{{ vault_login_result is success }}"
+          "7_kv2_write": "{{ vault_write_result is defined and vault_write_result is success }}"
+          "8_kv2_read": "{{ vault_read_result is defined and vault_read_result is success }}"
+
+    # ── Cleanup ──
+    - name: Clean up temporary CA certificate file
+      ansible.builtin.file:
+        path: "{{ temp_ca_cert.path }}"
+        state: absent
+      when: temp_ca_cert.path is defined
