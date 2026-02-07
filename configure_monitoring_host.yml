@@ -99,10 +99,17 @@
       become: true
       when: not fluent_bit_installed
 
-    - name: Create fluent-bit configuration file with dynamic inputs
+    - name: Create fluent-bit directory
+      ansible.builtin.file:
+        path: /etc/systemd/system
+        state: directory
+        mode: "0755"
+      become: true
+
+    - name: Create fluent-bit service file
       ansible.builtin.template:
-        src: fluent-bit.yaml.j2
-        dest: /etc/systemd/system/fluent-bit/fluent-bit.yaml
+        src: files/fluent-bit.service
+        dest: /etc/systemd/system/fluent-bit.service
         mode: "0644"
         force: true
       become: true
@@ -110,8 +117,8 @@
 
     - name: Add lua script for appending time to records
       ansible.builtin.template:
-        src: append_time.lua.j2
-        dest: /etc/systemd/systemw/fluent-bit/append_time.lua
+        src: templates/append_time.lua.j2
+        dest: /etc/fluent-bit/append_time.lua
         mode: "0644"
         force: true
       become: true
