@@ -1,0 +1,49 @@
+---
+- name: Add ingress rule for EC2 instance by ID
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Validate inputs
+      ansible.builtin.assert:
+        that:
+          - aws_region is string
+          - instance_id is string
+          - source_ip is string
+          - port is number
+          - protocol in ["tcp", "udp", "icmp", "icmpv6", "all"]
+        fail_msg: "Invalid input parameters."
+
+    - name: Get EC2 instance details
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        instance_ids:
+          - "{{ instance_id }}"
+      register: ec2_info
+
+    - name: Ensure instance was found
+      ansible.builtin.assert:
+        that:
+          - ec2_info.instances | length == 1
+        fail_msg: "EC2 instance not found."
+
+    - name: Set instance security groups and private IP
+      ansible.builtin.set_fact:
+        instance_private_ip: "{{ ec2_info.instances[0].private_ip_address }}"
+        instance_security_group_ids: "{{ ec2_info.instances[0].security_groups | map(attribute='group_id') | list }}"
+
+    - name: Add ingress rule to security groups (source IP only)
+      amazon.aws.ec2_security_group:
+        region: "{{ aws_region }}"
+        group_id: "{{ item }}"
+        rules:
+          - proto: "{{ protocol }}"
+            from_port: "{{ port }}"
+            to_port: "{{ port }}"
+            cidr_ip: "{{ source_ip }}"
+        rules_egress: []
+        state: present
+      loop: "{{ instance_security_group_ids }}"
+
+    - name: Show target instance private IP
+      ansible.builtin.debug:
+        msg: "Ingress rule added for {{ instance_id }} (private IP: {{ instance_private_ip }}) from {{ source_ip }}"
