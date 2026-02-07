@@ -152,10 +152,10 @@
       loop_control:
         label: "/mnt/{{ item.item.name_suffix }}"
 
-    - name: Reboot host to ensure mounts are active and fluent-bit can read logs
-      ansible.builtin.reboot:
-        reboot_timeout: 300
-      become: true
+    # - name: Reboot host to ensure mounts are active and fluent-bit can read logs
+    #   ansible.builtin.reboot:
+    #     reboot_timeout: 300
+    #   become: true
 
   handlers:
     - name: Restart fluent-bit
