@@ -37,6 +37,21 @@
         - item.network_interfaces | length > 0
         - item.tags.Name is defined
 
+- name: Configure monitoring host
+  hosts: monitoring_hosts
+  gather_facts: false
+  vars_files:
+    - defaults/create_linux_ec2_instance_defaults.yml
+  vars:
+    instances_with_445: "{{ hostvars['localhost']['instances_with_445'] | default([]) }}"
+  tasks:
+    - name: Build connection details for monitoring hosts
+      delegate_to: localhost
+      block:
+        - name: Include build_connection_details role
+          ansible.builtin.include_role:
+            name: build_connection_details
+
     - name: Check if port 445 is open on each instance
       ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
       register: nmap_result
@@ -53,21 +68,6 @@
     - name: Show instances with port 445 open (confirmed by nmap)
       ansible.builtin.debug:
         var: instances_with_445_open
-
-- name: Configure monitoring host
-  hosts: monitoring_hosts
-  gather_facts: false
-  vars_files:
-    - defaults/create_linux_ec2_instance_defaults.yml
-  vars:
-    instances_with_445_open: "{{ hostvars['localhost']['instances_with_445_open'] | default([]) }}"
-  tasks:
-    - name: Build connection details for monitoring hosts
-      delegate_to: localhost
-      block:
-        - name: Include build_connection_details role
-          ansible.builtin.include_role:
-            name: build_connection_details
 
     # Check fluent-bit service status
     - name: Check if fluent-bit service is installed, enabled, and running
@@ -108,7 +108,7 @@
       become: true
       notify: Restart fluent-bit
 
-    - name: Add fluent-bit configuration    --- IGNORE ---
+    - name: Add fluent-bit configuration
       ansible.builtin.template:
         src: templates/fluent-bit.yaml.j2
         dest: /etc/fluent-bit/fluent-bit.yaml
