@@ -19,6 +19,12 @@
               - system
               - processor_count
 
+        - name: Install nmap for port scanning
+          ansible.builtin.package:
+            name: nmap
+            state: present
+          become: true
+
         - name: Check if node_exporter service is installed, enabled, and running
           ansible.builtin.systemd:
             name: node_exporter

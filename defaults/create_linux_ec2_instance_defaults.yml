@@ -10,3 +10,4 @@ root_volume_delete_on_termination: true
 associate_eip: false
 vpc_id: "auto"
 subnet_id: "auto"
+monitoring_host_sg_name: "MonitoringHost"
