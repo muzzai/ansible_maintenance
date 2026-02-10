@@ -1,5 +1,5 @@
 # Ansible managed: Dynamic CIFS mounts for monitoring log shares
 # WARNING: Only the section below is managed by Ansible. System mounts above must be preserved.
 {% for instance in instances_with_445_open %}
-//{{ instance.internal_ip }}/LogFiles /mnt/{{ instance.name_suffix }} cifs credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,nofail,x-systemd.idle-timeout=20s 0 0
+//{{ instance.internal_ip }}/LogFiles /mnt/{{ instance.name_suffix }} cifs credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,actimeo=0,nofail,x-systemd.idle-timeout=20s 0 0
 {% endfor %}
