@@ -69,36 +69,6 @@
       ansible.builtin.debug:
         var: instances_with_445_open
 
-    # Check fluent-bit service status
-    - name: Check if fluent-bit service is installed, enabled, and running
-      ansible.builtin.systemd:
-        name: fluent-bit
-      register: fluent_bit_status
-      failed_when: false
-      become: true
-
-    - name: Set fluent_bit_installed fact
-      ansible.builtin.set_fact:
-        fluent_bit_installed: >-
-          {{ fluent_bit_status.status is defined and
-              fluent_bit_status.status.LoadState == 'loaded' and
-              fluent_bit_status.status.UnitFileState == 'enabled' }}
-
-    - name: Add fluent-bit repository
-      ansible.builtin.copy:
-        dest: /etc/yum.repos.d/fluent-bit.repo
-        src: fluent-bit.repo
-      become: true
-      when: not fluent_bit_installed
-
-    - name: Install fluent-bit package
-      ansible.builtin.package:
-        name: fluent-bit
-        state: present
-        use: auto
-      become: true
-      when: not fluent_bit_installed
-
     - name: Create fluent-bit service file
       ansible.builtin.template:
         src: files/fluent-bit.service
