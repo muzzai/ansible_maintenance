@@ -122,6 +122,7 @@
         - name: Output instance info
           ansible.builtin.debug:
             msg:
+              - "Instance ID: {{ ec2_result.instances[0].instance_id }}"
               - "Instance info: {{ ec2_result.instances }}"
               - "Elastic IP: {{ (associate_eip | bool) | ternary(eip_result, 'Not associated') }}"
 
