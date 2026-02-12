@@ -108,6 +108,8 @@
             region: "{{ aws_region }}"
             state: present
             device_id: "{{ launched_instance_id }}"
+            tags:
+              Name: "{{ ec2_name_tag }}"
           register: eip_result
 
         - name: Store private key in Vault
