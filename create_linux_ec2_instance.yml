@@ -71,6 +71,36 @@
         state: present
       register: keypair_result
 
+    - name: Get AMI block device mappings
+      amazon.aws.ec2_ami_info:
+        image_ids: "{{ ami_id }}"
+        region: "{{ aws_region }}"
+      register: ami_info
+
+    - name: Build volumes list (root encrypted, suppress all others)
+      ansible.builtin.set_fact:
+        ec2_volumes: >-
+          {{
+            [
+              {
+                "device_name": ami_info.images[0].root_device_name,
+                "ebs": {
+                  "volume_type": root_volume_type,
+                  "volume_size": root_volume_size | int,
+                  "delete_on_termination": root_volume_delete_on_termination | bool,
+                  "encrypted": root_volume_encrypted | bool
+                }
+              }
+            ]
+            +
+            (
+              ami_info.images[0].block_device_mappings
+              | selectattr('device_name', '!=', ami_info.images[0].root_device_name)
+              | map('combine', {"no_device": true})
+              | list
+            )
+          }}
+
     - name: Launch and configure EC2 instance (with cleanup on failure)
       block:
         - name: Launch EC2 instance
@@ -87,13 +117,7 @@
             wait_timeout: 500
             state: running
             count: 1
-            volumes:
-              - device_name: /dev/sda1
-                ebs:
-                  volume_type: "{{ root_volume_type }}"
-                  volume_size: "{{ root_volume_size | int }}"
-                  delete_on_termination: "{{ root_volume_delete_on_termination | bool }}"
-                  encrypted: "{{ root_volume_encrypted | bool }}"
+            volumes: "{{ ec2_volumes }}"
             tags:
               Name: "{{ ec2_name_tag }}"
           register: ec2_result
