@@ -180,6 +180,7 @@
             prometheus_service_enable: true
             prometheus_service_state: started
             prometheus_agent_mode: true
+            prometheus_storage_retention: "2d"
           when: not prometheus_installed
 
       rescue:
