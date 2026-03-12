@@ -12,6 +12,12 @@ scrape_configs:
     - region: {{ hostvars[inventory_hostname]['placement']['region'] }}
       port: 9182
   relabel_configs:
+    - source_labels: [__meta_ec2_tag_Name]
+      regex: '^-.*'
+      action: drop
+    - source_labels: [__meta_ec2_instance_state]
+      regex: 'stopped'
+      action: drop
     - source_labels: [__meta_ec2_private_ip]
       target_label: __address__
       replacement: '${1}:9182'
