@@ -181,7 +181,7 @@
             prometheus_service_state: started
             prometheus_agent_mode: true
             prometheus_storage_retention: "2d"
-          when: not prometheus_installed
+          # when: not prometheus_installed
 
       rescue:
         - name: Stop and remove node_exporter service
