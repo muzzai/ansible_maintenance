@@ -27,6 +27,8 @@ scrape_configs:
       replacement: '${1}${2}'
     - source_labels: [__meta_ec2_private_ip]
       target_label: private_ip
+    - target_label: aws_region
+      replacement: '{{ hostvars[inventory_hostname]["placement"]["region"] }}'
 
 
 - job_name: 'monitoring_node_exporter{% if deploy_environment == "testing" %}_testing{% endif %}'
@@ -37,3 +39,5 @@ scrape_configs:
   relabel_configs:
     - target_label: instance
       replacement: '{{ hostvars[inventory_hostname]["placement"]["region"] }}-exporter{% if deploy_environment == "testing" %}_testing{% endif %}'
+    - target_label: aws_region
+      replacement: '{{ hostvars[inventory_hostname]["placement"]["region"] }}'
