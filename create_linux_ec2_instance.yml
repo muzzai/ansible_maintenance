@@ -5,7 +5,6 @@
   vars_files:
     - defaults/create_linux_ec2_instance_defaults.yml
   tasks:
-
     - name: Assert required variables are supplied
       ansible.builtin.assert:
         that:
@@ -132,6 +131,8 @@
             volumes: "{{ ec2_volumes }}"
             tags:
               Name: "{{ ec2_name_tag }}"
+              Project: "{{ project_tag }}"
+              Owner: "{{ owner_tag }}"
           register: ec2_result
 
         - name: Set instance ID and derived facts
