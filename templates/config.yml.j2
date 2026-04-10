@@ -15,6 +15,9 @@ scrape_configs:
     - source_labels: [__meta_ec2_tag_Name]
       regex: '^-.*'
       action: drop
+    - source_labels: [__meta_ec2_tag_Name]
+      regex: '^AlloyScan.*'
+      action: drop
     - source_labels: [__meta_ec2_instance_state]
       regex: 'stopped'
       action: drop
@@ -53,6 +56,9 @@ scrape_configs:
     - source_labels: [__meta_ec2_tag_Name]
       regex: '^-.*'
       action: drop
+    - source_labels: [__meta_ec2_tag_Name]
+      regex: '^AlloyScan.*'
+      action: drop
     - source_labels: [__meta_ec2_instance_state]
       regex: 'stopped'
       action: drop
@@ -78,6 +84,9 @@ scrape_configs:
   relabel_configs:
     - source_labels: [__meta_ec2_tag_Name]
       regex: '^-.*'
+      action: drop
+    - source_labels: [__meta_ec2_tag_Name]
+      regex: '^AlloyScan.*'
       action: drop
     - source_labels: [__meta_ec2_instance_state]
       regex: 'stopped'
