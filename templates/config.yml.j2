@@ -41,3 +41,29 @@ scrape_configs:
       replacement: '{{ hostvars[inventory_hostname]["placement"]["region"] }}-exporter{% if deploy_environment == "testing" %}_testing{% endif %}'
     - target_label: aws_region
       replacement: '{{ hostvars[inventory_hostname]["placement"]["region"] }}'
+
+
+- job_name: 'blackbox_http{% if deploy_environment == "testing" %}_testing{% endif %}'
+  metrics_path: /probe
+  params:
+    module: [http_2xx]
+  ec2_sd_configs:
+    - region: {{ hostvars[inventory_hostname]['placement']['region'] }}
+  relabel_configs:
+    - source_labels: [__meta_ec2_tag_Name]
+      regex: '^-.*'
+      action: drop
+    - source_labels: [__meta_ec2_instance_state]
+      regex: 'stopped'
+      action: drop
+    - source_labels: [__meta_ec2_tag_Name]
+      regex: '.*\(([^)]+)\)\s*$|(.+)'
+      target_label: instance
+      replacement: '${1}${2}'
+    - source_labels: [instance]
+      target_label: __param_target
+      replacement: 'https://${1}.alloyservice.com/lifecycle/health'
+    - target_label: __address__
+      replacement: 'localhost:9115'
+    - target_label: aws_region
+      replacement: '{{ hostvars[inventory_hostname]["placement"]["region"] }}'

@@ -1,0 +1,12 @@
+modules:
+  http_2xx:
+    prober: http
+    http:
+      method: GET
+      valid_status_codes:
+        - 200
+        - 201
+        - 202
+        - 204
+      follow_redirects: true
+      preferred_ip_protocol: ip4

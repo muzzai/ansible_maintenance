@@ -146,6 +146,119 @@
           when: not node_exporter_installed
           become: true
 
+        # Blackbox exporter installation
+        - name: Check if blackbox_exporter service is installed, enabled, and running
+          ansible.builtin.systemd:
+            name: blackbox_exporter
+          register: blackbox_exporter_status
+          failed_when: false
+          become: true
+
+        - name: Set blackbox_exporter_installed fact
+          ansible.builtin.set_fact:
+            blackbox_exporter_installed: >-
+              {{ blackbox_exporter_status.status is defined and
+                 blackbox_exporter_status.status.LoadState == 'loaded' and
+                 blackbox_exporter_status.status.ActiveState == 'active' and
+                 blackbox_exporter_status.status.UnitFileState == 'enabled' }}
+
+        - name: Download blackbox_exporter archive
+          ansible.builtin.get_url:
+            url:
+              "https://github.com/prometheus/blackbox_exporter/releases/download/\
+              v{{ blackbox_exporter_version }}/blackbox_exporter-{{ blackbox_exporter_version }}.{{ blackbox_exporter_arch }}.tar.gz"
+            dest: "/tmp/blackbox_exporter-{{ blackbox_exporter_version }}.tar.gz"
+            mode: "0644"
+            force: true
+          register: blackbox_dl
+          changed_when: blackbox_dl.dest is defined
+          when: not blackbox_exporter_installed
+          become: true
+
+        - name: Extract blackbox_exporter archive
+          ansible.builtin.unarchive:
+            src: "/tmp/blackbox_exporter-{{ blackbox_exporter_version }}.tar.gz"
+            dest: /tmp
+            remote_src: true
+          when: blackbox_dl is defined and not blackbox_exporter_installed
+          become: true
+
+        - name: Copy blackbox_exporter binary to /usr/local/bin
+          ansible.builtin.copy:
+            src: "/tmp/blackbox_exporter-{{ blackbox_exporter_version }}.{{ blackbox_exporter_arch }}/blackbox_exporter"
+            dest: /usr/local/bin/blackbox_exporter
+            remote_src: true
+            mode: "0755"
+          become: true
+          when: not blackbox_exporter_installed
+
+        - name: Ensure blackbox_exporter group exists
+          ansible.builtin.group:
+            name: blackbox_exporter
+            system: true
+          become: true
+          when: not blackbox_exporter_installed
+
+        - name: Ensure blackbox_exporter user exists
+          ansible.builtin.user:
+            name: blackbox_exporter
+            group: blackbox_exporter
+            system: true
+            shell: /usr/sbin/nologin
+            create_home: false
+          become: true
+          when: not blackbox_exporter_installed
+
+        - name: Ensure blackbox_exporter binary ownership
+          ansible.builtin.file:
+            path: /usr/local/bin/blackbox_exporter
+            owner: blackbox_exporter
+            group: blackbox_exporter
+            mode: "0755"
+          when: not blackbox_exporter_installed
+          become: true
+
+        - name: Ensure /etc/blackbox_exporter directory exists
+          ansible.builtin.file:
+            path: /etc/blackbox_exporter
+            state: directory
+            owner: blackbox_exporter
+            group: blackbox_exporter
+            mode: "0755"
+          become: true
+          when: not blackbox_exporter_installed
+
+        - name: Deploy blackbox_exporter config
+          ansible.builtin.copy:
+            src: blackbox_config.yml
+            dest: /etc/blackbox_exporter/config.yml
+            owner: blackbox_exporter
+            group: blackbox_exporter
+            mode: "0644"
+          become: true
+          when: not blackbox_exporter_installed
+
+        - name: Deploy blackbox_exporter systemd unit file
+          ansible.builtin.copy:
+            src: blackbox_exporter.service
+            dest: /etc/systemd/system/blackbox_exporter.service
+            owner: root
+            group: root
+            mode: "0644"
+          notify:
+            - Daemon reload
+            - Restart blackbox_exporter
+          when: not blackbox_exporter_installed
+          become: true
+
+        - name: Ensure blackbox_exporter systemd service enabled and started
+          ansible.builtin.systemd:
+            name: blackbox_exporter
+            enabled: true
+            state: started
+          when: not blackbox_exporter_installed
+          become: true
+
         # Check Prometheus service status
         - name: Check if Prometheus service is installed, enabled, and running
           ansible.builtin.systemd:
@@ -275,5 +388,11 @@
     - name: Restart node_exporter
       ansible.builtin.systemd:
         name: node_exporter
+        state: restarted
+      become: true
+
+    - name: Restart blackbox_exporter
+      ansible.builtin.systemd:
+        name: blackbox_exporter
         state: restarted
       become: true
