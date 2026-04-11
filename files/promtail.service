@@ -1,0 +1,17 @@
+[Unit]
+Description=Promtail
+Documentation=https://grafana.com/docs/loki/latest/send-data/promtail/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=promtail
+Group=promtail
+WorkingDirectory=/var/lib/promtail
+ExecStart=/usr/local/bin/promtail -config.file=/etc/promtail/config.yml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,239 @@
+---
+- name: Gather data
+  hosts: localhost
+  gather_facts: false
+  vars:
+    aws_region: "{{ aws_region | default('') }}"
+  tasks:
+    - name: Fail if aws_region is not set
+      when: aws_region == ''
+      ansible.builtin.fail:
+        msg: "AWS region is not set"
+
+    - name: Gather EC2 instances info
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+      register: ec2_info
+
+    - name: Build list of instances with internal IP and parsed Name
+      ansible.builtin.set_fact:
+        instances_with_445: >-
+          {{
+            instances_with_445 | default([]) + [
+              {
+                'id': item.instance_id,
+                'name': instance_name,
+                'name_suffix': name_suffix,
+                'internal_ip': item.network_interfaces[0].private_ip_address
+              }
+            ]
+          }}
+      vars:
+        instance_name: "{{ item.tags.Name | default('') }}"
+        name_suffix: >-
+          {{ instance_name | regex_replace('.*\(([^()]*)\)\s*$', '\1') if '(' in instance_name else '' }}
+      loop: "{{ ec2_info.instances }}"
+      when:
+        - item.network_interfaces | length > 0
+        - item.tags.Name is defined
+
+- name: Install and configure promtail on monitoring hosts
+  hosts: monitoring_hosts
+  gather_facts: false
+  vars_files:
+    - defaults/configure_monitoring_host_defaults.yml
+    - defaults/install_promtail_defaults.yml
+  vars:
+    instances_with_445: "{{ hostvars['localhost']['instances_with_445'] | default([]) }}"
+  tasks:
+    - name: Build connection details for monitoring hosts
+      delegate_to: localhost
+      block:
+        - name: Include build_connection_details role
+          ansible.builtin.include_role:
+            name: build_connection_details
+
+    - name: Install required packages
+      ansible.builtin.package:
+        name:
+          - nmap
+          - cifs-utils
+          - unzip
+        state: present
+      become: true
+
+    - name: Check if port 445 is open on each instance
+      ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
+      register: nmap_result
+      loop: "{{ instances_with_445 }}"
+      changed_when: false
+
+    - name: Filter instances where port 445 is open
+      ansible.builtin.set_fact:
+        instances_with_445_open: >-
+          {{
+            instances_with_445 | zip(nmap_result.results) | selectattr('1.stdout', 'search', '445/tcp open') | map(attribute='0') | list
+          }}
+
+    - name: Show instances with port 445 open (confirmed by nmap)
+      ansible.builtin.debug:
+        var: instances_with_445_open
+
+    - name: Check if promtail service is installed, enabled, and running
+      ansible.builtin.systemd:
+        name: promtail
+      register: promtail_status
+      failed_when: false
+      become: true
+
+    - name: Set promtail_installed fact
+      ansible.builtin.set_fact:
+        promtail_installed: >-
+          {{ promtail_status.status is defined and
+             promtail_status.status.LoadState == 'loaded' and
+             promtail_status.status.ActiveState == 'active' and
+             promtail_status.status.UnitFileState == 'enabled' }}
+
+    - name: Ensure promtail group exists
+      ansible.builtin.group:
+        name: promtail
+        system: true
+      become: true
+
+    - name: Ensure promtail user exists
+      ansible.builtin.user:
+        name: promtail
+        group: promtail
+        system: true
+        shell: /usr/sbin/nologin
+        create_home: false
+      become: true
+
+    - name: Ensure promtail directories exist
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - path: /etc/promtail
+          owner: root
+          group: root
+          mode: "0755"
+        - path: /var/lib/promtail
+          owner: promtail
+          group: promtail
+          mode: "0755"
+        - path: /tmp/promtail-{{ promtail_version }}
+          owner: root
+          group: root
+          mode: "0755"
+      become: true
+
+    - name: Download promtail archive
+      ansible.builtin.get_url:
+        url: "https://github.com/grafana/loki/releases/download/v{{ promtail_version }}/promtail-{{ promtail_arch }}.zip"
+        dest: "/tmp/promtail-{{ promtail_arch }}.zip"
+        mode: "0644"
+        force: true
+      register: promtail_download
+      when: not promtail_installed
+      become: true
+
+    - name: Extract promtail archive
+      ansible.builtin.unarchive:
+        src: "/tmp/promtail-{{ promtail_arch }}.zip"
+        dest: "/tmp/promtail-{{ promtail_version }}"
+        remote_src: true
+      when: not promtail_installed
+      become: true
+
+    - name: Install promtail binary
+      ansible.builtin.copy:
+        src: "/tmp/promtail-{{ promtail_version }}/promtail-{{ promtail_arch }}"
+        dest: /usr/local/bin/promtail
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      when: not promtail_installed
+      become: true
+
+    - name: Add smbcreds file for CIFS mounts
+      ansible.builtin.copy:
+        content: |
+          username={{ smb_username }}
+          password={{ smb_password }}
+        dest: /root/.smbcreds
+        mode: "0600"
+        force: true
+      become: true
+
+    - name: Mount CIFS log shares
+      ansible.posix.mount:
+        src: "//{{ item.internal_ip }}/LogFiles"
+        path: "/mnt/{{ item.name_suffix }}"
+        fstype: cifs
+        opts: "ro,credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,nofail,x-systemd.idle-timeout=20s"
+        state: mounted
+      loop: "{{ instances_with_445_open }}"
+      become: true
+      register: mount_results
+      ignore_errors: true
+
+    - name: Log failed mounts
+      ansible.builtin.debug:
+        msg: "Failed to mount //{{ item.item.internal_ip }}/LogFiles on /mnt/{{ item.item.name_suffix }}: {{ item.msg | default('unknown error') }}"
+      loop: "{{ mount_results.results | selectattr('failed', 'true') | list }}"
+      loop_control:
+        label: "/mnt/{{ item.item.name_suffix }}"
+
+    - name: Deploy promtail configuration
+      ansible.builtin.template:
+        src: templates/promtail-config.yml.j2
+        dest: /etc/promtail/config.yml
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart promtail
+      become: true
+
+    - name: Deploy promtail systemd unit file
+      ansible.builtin.copy:
+        src: files/promtail.service
+        dest: /etc/systemd/system/promtail.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - Reload systemd
+        - Restart promtail
+      become: true
+
+    - name: Ensure promtail data directory ownership
+      ansible.builtin.file:
+        path: /var/lib/promtail
+        owner: promtail
+        group: promtail
+        recurse: true
+      become: true
+
+    - name: Ensure promtail systemd service enabled and started
+      ansible.builtin.systemd:
+        name: promtail
+        enabled: true
+        state: started
+      become: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+
+    - name: Restart promtail
+      ansible.builtin.systemd:
+        name: promtail
+        state: restarted
+      become: true

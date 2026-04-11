@@ -1,0 +1,41 @@
+server:
+  http_listen_port: {{ promtail_http_listen_port }}
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yml
+
+clients:
+  - url: {{ promtail_loki_push_url }}
+
+scrape_configs:
+  - job_name: iis.logs
+    static_configs:
+{% for instance in instances_with_445_open %}
+      - targets:
+          - localhost
+        labels:
+          job: iis.logs
+          service: {{ promtail_service_name }}
+          env: {{ promtail_environment }}
+          region: {{ aws_region | default('unknown') }}
+          log_type: iis
+          instance: {{ instance.name_suffix }}
+          __path__: /mnt/{{ instance.name_suffix }}/W3SVC*/*.log
+{% endfor %}
+    pipeline_stages:
+      - drop:
+          expression: '^#'
+      - regex:
+          expression: '^(?P<datetime>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})\s(?P<s_ip>\S+)\s(?P<cs_method>\S+)\s(?P<cs_uri_stem>\S+)\s(?P<cs_uri_query>\S+)\s(?P<s_port>\d+)\s(?P<cs_username>\S+)\s(?P<c_ip>\S+)\s(?P<user_agent>[^\s]+)\s(?P<referer>\S+)\s(?P<sc_status>\d+)\s(?P<sc_substatus>\d+)\s(?P<sc_win32_status>\d+)\s(?P<time_taken>\d+)$'
+      - timestamp:
+          source: datetime
+          format: '2006-01-02 15:04:05'
+          location: UTC
+        - regex:
+          source: sc_status
+          expression: '^(?P<status_class>\d)\d\d$'
+      - labels:
+          http_method: cs_method
+          status: sc_status
+          status_class: status_class
