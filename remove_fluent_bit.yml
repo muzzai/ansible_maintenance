@@ -1,0 +1,54 @@
+---
+- name: Remove fluent-bit from monitoring hosts
+  hosts: monitoring_hosts
+  gather_facts: false
+  tasks:
+    - name: Build connection details for monitoring hosts
+      delegate_to: localhost
+      block:
+        - name: Include build_connection_details role
+          ansible.builtin.include_role:
+            name: build_connection_details
+
+    - name: Stop and disable fluent-bit service
+      ansible.builtin.systemd:
+        name: fluent-bit
+        state: stopped
+        enabled: false
+      failed_when: false
+      become: true
+
+    - name: Remove fluent-bit package
+      ansible.builtin.package:
+        name: fluent-bit
+        state: absent
+      become: true
+
+    - name: Remove fluent-bit systemd unit
+      ansible.builtin.file:
+        path: /etc/systemd/system/fluent-bit.service
+        state: absent
+      notify: Reload systemd
+      become: true
+
+    - name: Remove fluent-bit repository
+      ansible.builtin.file:
+        path: /etc/yum.repos.d/fluent-bit.repo
+        state: absent
+      become: true
+
+    - name: Remove fluent-bit files and data
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/fluent-bit
+        - /opt/fluent-bit
+        - /var/lib/fluent-bit
+      become: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
