@@ -32,7 +32,7 @@ scrape_configs:
           source: datetime
           format: '2006-01-02 15:04:05'
           location: UTC
-        - regex:
+      - regex:
           source: sc_status
           expression: '^(?P<status_class>\d)\d\d$'
       - labels:
