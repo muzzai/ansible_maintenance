@@ -8,10 +8,11 @@ positions:
 clients:
   - url: {{ promtail_loki_push_url }}
 
+{% if promtail_log_sources | default([]) | length > 0 %}
 scrape_configs:
   - job_name: iis.logs
     static_configs:
-{% for instance in instances_with_445_open %}
+{% for instance in promtail_log_sources %}
       - targets:
           - localhost
         labels:
@@ -39,3 +40,6 @@ scrape_configs:
           http_method: cs_method
           status: sc_status
           status_class: status_class
+{% else %}
+scrape_configs: []
+{% endif %}

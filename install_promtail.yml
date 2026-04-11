@@ -189,6 +189,23 @@
       loop_control:
         label: "/mnt/{{ item.item.name_suffix }}"
 
+    - name: Discover mounted log source directories
+      ansible.builtin.find:
+        paths: /mnt
+        file_type: directory
+        recurse: false
+      register: promtail_mount_dirs
+      become: true
+
+    - name: Build promtail log sources from mounted directories
+      ansible.builtin.set_fact:
+        promtail_log_sources: "{{ promtail_log_sources | default([]) + [{'name_suffix': item.path | basename}] }}"
+      loop: "{{ promtail_mount_dirs.files }}"
+
+    - name: Show promtail log sources
+      ansible.builtin.debug:
+        var: promtail_log_sources
+
     - name: Deploy promtail configuration
       ansible.builtin.template:
         src: templates/promtail-config.yml.j2
