@@ -2,8 +2,6 @@
 - name: Gather data
   hosts: localhost
   gather_facts: false
-  vars:
-    monitoring_region: "{{ aws_region | default(hostvars[inventory_hostname]['placement']['region'] | default('unknown')) }}"
   tasks:
     - name: Fail if monitoring region cannot be determined
       when: monitoring_region == 'unknown'
