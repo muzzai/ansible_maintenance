@@ -143,6 +143,7 @@
         state: directory
         mode: "0755"
       loop: "{{ instances_with_445_open }}"
+      failed_when: false
       become: true
 
     - name: Mount CIFS log shares
