@@ -55,26 +55,26 @@
           ansible.builtin.include_role:
             name: build_connection_details
 
-    - name: Install required packages
-      ansible.builtin.package:
-        name:
-          - nmap
-          - cifs-utils
-        state: present
-      become: true
+    # - name: Install required packages
+    #   ansible.builtin.package:
+    #     name:
+    #       - nmap
+    #       - cifs-utils
+    #     state: present
+    #   become: true
 
-    - name: Check if port 445 is open on each instance
-      ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
-      register: nmap_result
-      loop: "{{ instances_with_445 }}"
-      changed_when: false
+    # - name: Check if port 445 is open on each instance
+    #   ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
+    #   register: nmap_result
+    #   loop: "{{ instances_with_445 }}"
+    #   changed_when: false
 
-    - name: Filter instances where port 445 is open
-      ansible.builtin.set_fact:
-        instances_with_445_open: >-
-          {{
-            instances_with_445 | zip(nmap_result.results) | selectattr('1.stdout', 'search', '445/tcp open') | map(attribute='0') | list
-          }}
+    # - name: Filter instances where port 445 is open
+    #   ansible.builtin.set_fact:
+    #     instances_with_445_open: >-
+    #       {{
+    #         instances_with_445 | zip(nmap_result.results) | selectattr('1.stdout', 'search', '445/tcp open') | map(attribute='0') | list
+    #       }}
 
     - name: Check Prometheus service status
       ansible.builtin.systemd:
@@ -97,75 +97,75 @@
         fluent_bit_installed: >-
           {{ fluent_bit_status.status is defined and fluent_bit_status.status.LoadState == 'loaded' }}
 
-    - name: Stop legacy monitoring services before migration
-      ansible.builtin.systemd:
-        name: "{{ item.name }}"
-        state: stopped
-        enabled: false
-      loop:
-        - name: prometheus
-          installed: "{{ prometheus_installed }}"
-        - name: fluent-bit
-          installed: "{{ fluent_bit_installed }}"
-      when: item.installed | bool
-      failed_when: false
-      become: true
+    # - name: Stop legacy monitoring services before migration
+    #   ansible.builtin.systemd:
+    #     name: "{{ item.name }}"
+    #     state: stopped
+    #     enabled: false
+    #   loop:
+    #     - name: prometheus
+    #       installed: "{{ prometheus_installed }}"
+    #     - name: fluent-bit
+    #       installed: "{{ fluent_bit_installed }}"
+    #   when: item.installed | bool
+    #   failed_when: false
+    #   become: true
 
-    - name: Configure Grafana RPM repository
-      ansible.builtin.yum_repository:
-        name: grafana
-        description: grafana
-        baseurl: "{{ alloy_repo_baseurl }}"
-        repo_gpgcheck: true
-        enabled: true
-        gpgcheck: true
-        gpgkey: "{{ alloy_repo_gpgkey }}"
-        sslverify: true
-        sslcacert: /etc/pki/tls/certs/ca-bundle.crt
-      become: true
+    # - name: Configure Grafana RPM repository
+    #   ansible.builtin.yum_repository:
+    #     name: grafana
+    #     description: grafana
+    #     baseurl: "{{ alloy_repo_baseurl }}"
+    #     repo_gpgcheck: true
+    #     enabled: true
+    #     gpgcheck: true
+    #     gpgkey: "{{ alloy_repo_gpgkey }}"
+    #     sslverify: true
+    #     sslcacert: /etc/pki/tls/certs/ca-bundle.crt
+    #   become: true
 
-    - name: Install Grafana Alloy package
-      ansible.builtin.package:
-        name: alloy
-        state: present
-      become: true
+    # - name: Install Grafana Alloy package
+    #   ansible.builtin.package:
+    #     name: alloy
+    #     state: present
+    #   become: true
 
-    - name: Add smbcreds file for CIFS mounts
-      ansible.builtin.copy:
-        content: |
-          username={{ smb_username }}
-          password={{ smb_password }}
-        dest: /root/.smbcreds
-        mode: "0600"
-        force: true
-      become: true
+    # - name: Add smbcreds file for CIFS mounts
+    #   ansible.builtin.copy:
+    #     content: |
+    #       username={{ smb_username }}
+    #       password={{ smb_password }}
+    #     dest: /root/.smbcreds
+    #     mode: "0600"
+    #     force: true
+    #   become: true
 
-    - name: Ensure CIFS mount directories exist
-      ansible.builtin.file:
-        path: "/mnt/{{ item.name_suffix }}"
-        state: directory
-        mode: "0755"
-      loop: "{{ instances_with_445_open }}"
-      become: true
+    # - name: Ensure CIFS mount directories exist
+    #   ansible.builtin.file:
+    #     path: "/mnt/{{ item.name_suffix }}"
+    #     state: directory
+    #     mode: "0755"
+    #   loop: "{{ instances_with_445_open }}"
+    #   become: true
 
-    - name: Mount CIFS log shares
-      ansible.posix.mount:
-        src: "//{{ item.internal_ip }}/LogFiles"
-        path: "/mnt/{{ item.name_suffix }}"
-        fstype: cifs
-        opts: "ro,credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,nofail,x-systemd.idle-timeout=20s"
-        state: mounted
-      loop: "{{ instances_with_445_open }}"
-      become: true
-      register: mount_results
-      ignore_errors: true
+    # - name: Mount CIFS log shares
+    #   ansible.posix.mount:
+    #     src: "//{{ item.internal_ip }}/LogFiles"
+    #     path: "/mnt/{{ item.name_suffix }}"
+    #     fstype: cifs
+    #     opts: "ro,credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,nofail,x-systemd.idle-timeout=20s"
+    #     state: mounted
+    #   loop: "{{ instances_with_445_open }}"
+    #   become: true
+    #   register: mount_results
+    #   ignore_errors: true
 
-    - name: Log failed mounts
-      ansible.builtin.debug:
-        msg: "Failed to mount //{{ item.item.internal_ip }}/LogFiles on /mnt/{{ item.item.name_suffix }}: {{ item.msg | default('unknown error') }}"
-      loop: "{{ mount_results.results | selectattr('failed', 'true') | list }}"
-      loop_control:
-        label: "/mnt/{{ item.item.name_suffix }}"
+    # - name: Log failed mounts
+    #   ansible.builtin.debug:
+    #     msg: "Failed to mount //{{ item.item.internal_ip }}/LogFiles on /mnt/{{ item.item.name_suffix }}: {{ item.msg | default('unknown error') }}"
+    #   loop: "{{ mount_results.results | selectattr('failed', 'true') | list }}"
+    #   loop_control:
+    #     label: "/mnt/{{ item.item.name_suffix }}"
 
     - name: Discover mounted log source directories
       ansible.builtin.find:
@@ -174,6 +174,11 @@
         recurse: false
       register: alloy_mount_dirs
       become: true
+
+    - name: Log discovered log source directories
+      ansible.builtin.debug:
+        msg: "Discovered log source directory: {{ item.path }}"
+      loop: "{{ alloy_mount_dirs.files }}"
 
     - name: Build Alloy log sources from mounted directories
       ansible.builtin.set_fact:
@@ -190,54 +195,54 @@
       notify: Restart alloy
       become: true
 
-    - name: Ensure Alloy systemd service enabled and started
-      ansible.builtin.systemd:
-        name: alloy
-        enabled: true
-        state: started
-      become: true
+  #   - name: Ensure Alloy systemd service enabled and started
+  #     ansible.builtin.systemd:
+  #       name: alloy
+  #       enabled: true
+  #       state: started
+  #     become: true
 
-    - name: Apply Alloy configuration before cleanup
-      ansible.builtin.meta: flush_handlers
+  #   - name: Apply Alloy configuration before cleanup
+  #     ansible.builtin.meta: flush_handlers
 
-    - name: Remove fluent-bit package after migration
-      ansible.builtin.package:
-        name: fluent-bit
-        state: absent
-      when: fluent_bit_installed | bool
-      become: true
+  #   - name: Remove fluent-bit package after migration
+  #     ansible.builtin.package:
+  #       name: fluent-bit
+  #       state: absent
+  #     when: fluent_bit_installed | bool
+  #     become: true
 
-    - name: Remove legacy monitoring files and data
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: absent
-      loop:
-        - /etc/fluent-bit
-        - /opt/fluent-bit
-        - /var/lib/fluent-bit
-        - /etc/systemd/system/fluent-bit.service
-        - /etc/yum.repos.d/fluent-bit.repo
-        - /usr/lib/systemd/system/fluent-bit.service
-        - /etc/prometheus
-        - /var/lib/prometheus
-        - /etc/systemd/system/prometheus.service
-        - /usr/lib/systemd/system/prometheus.service
-        - /usr/local/bin/prometheus
-        - /usr/local/bin/promtool
-        - /etc/default/prometheus
-        - /etc/sysconfig/prometheus
-      register: legacy_cleanup
-      become: true
+  #   - name: Remove legacy monitoring files and data
+  #     ansible.builtin.file:
+  #       path: "{{ item }}"
+  #       state: absent
+  #     loop:
+  #       - /etc/fluent-bit
+  #       - /opt/fluent-bit
+  #       - /var/lib/fluent-bit
+  #       - /etc/systemd/system/fluent-bit.service
+  #       - /etc/yum.repos.d/fluent-bit.repo
+  #       - /usr/lib/systemd/system/fluent-bit.service
+  #       - /etc/prometheus
+  #       - /var/lib/prometheus
+  #       - /etc/systemd/system/prometheus.service
+  #       - /usr/lib/systemd/system/prometheus.service
+  #       - /usr/local/bin/prometheus
+  #       - /usr/local/bin/promtool
+  #       - /etc/default/prometheus
+  #       - /etc/sysconfig/prometheus
+  #     register: legacy_cleanup
+  #     become: true
 
-    - name: Reload systemd after legacy cleanup
-      ansible.builtin.systemd:
-        daemon_reload: true
-      when: legacy_cleanup is changed
-      become: true
+  #   - name: Reload systemd after legacy cleanup
+  #     ansible.builtin.systemd:
+  #       daemon_reload: true
+  #     when: legacy_cleanup is changed
+  #     become: true
 
-  handlers:
-    - name: Restart alloy
-      ansible.builtin.systemd:
-        name: alloy
-        state: restarted
-      become: true
+  # handlers:
+  #   - name: Restart alloy
+  #     ansible.builtin.systemd:
+  #       name: alloy
+  #       state: restarted
+  #     become: true
