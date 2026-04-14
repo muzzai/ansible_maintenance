@@ -55,26 +55,26 @@
           ansible.builtin.include_role:
             name: build_connection_details
 
-    # - name: Install required packages
-    #   ansible.builtin.package:
-    #     name:
-    #       - nmap
-    #       - cifs-utils
-    #     state: present
-    #   become: true
+    - name: Install required packages
+      ansible.builtin.package:
+        name:
+          - nmap
+          - cifs-utils
+        state: present
+      become: true
 
-    # - name: Check if port 445 is open on each instance
-    #   ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
-    #   register: nmap_result
-    #   loop: "{{ instances_with_445 }}"
-    #   changed_when: false
+    - name: Check if port 445 is open on each instance
+      ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
+      register: nmap_result
+      loop: "{{ instances_with_445 }}"
+      changed_when: false
 
-    # - name: Filter instances where port 445 is open
-    #   ansible.builtin.set_fact:
-    #     instances_with_445_open: >-
-    #       {{
-    #         instances_with_445 | zip(nmap_result.results) | selectattr('1.stdout', 'search', '445/tcp open') | map(attribute='0') | list
-    #       }}
+    - name: Filter instances where port 445 is open
+      ansible.builtin.set_fact:
+        instances_with_445_open: >-
+          {{
+            instances_with_445 | zip(nmap_result.results) | selectattr('1.stdout', 'search', '445/tcp open') | map(attribute='0') | list
+          }}
 
     - name: Check Prometheus service status
       ansible.builtin.systemd:
