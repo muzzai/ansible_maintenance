@@ -1,0 +1,6 @@
+alloy_metrics_remote_write_url: "https://push.alloysoftware.us/insert/0/prometheus"
+alloy_logs_write_url: "https://logs.alloysoftware.us/loki/api/v1/push"
+alloy_environment: "{{ deploy_environment }}"
+alloy_log_service_name: "iis"
+alloy_repo_baseurl: "https://rpm.grafana.com"
+alloy_repo_gpgkey: "https://rpm.grafana.com/gpg.key"
