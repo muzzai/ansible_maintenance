@@ -313,8 +313,6 @@ loki.process "iis_logs" {
 loki.source.file "iis_logs" {
   targets                 = local.file_match.iis_logs.targets
   forward_to              = [loki.process.iis_logs.receiver]
-  tail_from_end           = true
-  on_positions_file_error = "restart_from_end"
 
   file_watch {
     min_poll_frequency = "250ms"
