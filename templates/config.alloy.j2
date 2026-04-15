@@ -116,7 +116,7 @@ discovery.relabel "blackbox_http_ssp" {
 
   rule {
     target_label = "aws_region"
-    replacement  = "{{ monitoring_region }}"
+    replacement  = "{{ monitoring_region }}"d
   }
 }
 
@@ -317,7 +317,7 @@ loki.source.file "iis_logs" {
   on_positions_file_error = "restart_from_end"
 
   file_watch {
-    min_poll_frequency = "60s"
+    min_poll_frequency = "250ms"
     max_poll_frequency = "60s"
   }
 }
