@@ -39,7 +39,7 @@
       become: true
 
     - name: Unmount all existing mounts under /mnt
-      ansible.builtin.command: "sudo umount /mnt/* -l"
+      ansible.builtin.shell: "sudo umount /mnt/* -l"
       changed_when: false
       ignore_errors: true
 
