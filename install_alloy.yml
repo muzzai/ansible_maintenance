@@ -38,6 +38,10 @@
         state: present
       become: true
 
+    - name: Unmount all existing mounts under /mnt
+      ansible.builtin.command: "sudo umount -l /mnt/*"
+      changed_when: false
+
     - name: Build list of instances with internal IP and parsed Name
       ansible.builtin.set_fact:
         instances_with_445: >-
