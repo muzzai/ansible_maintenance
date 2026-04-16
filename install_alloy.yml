@@ -144,13 +144,6 @@
         mode: "0644"
       become: true
 
-    - name: Apply oplock setting immediately
-      ansible.builtin.shell: |
-        modprobe cifs
-        echo 0 > /proc/fs/cifs/OplockEnabled
-      become: true
-      changed_when: true
-
     - name: Ensure CIFS mount directories exist
       ansible.builtin.file:
         path: "/mnt/{{ item.name_suffix }}"
@@ -165,7 +158,7 @@
         src: "//{{ item.internal_ip }}/LogFiles"
         path: "/mnt/{{ item.name_suffix }}"
         fstype: cifs
-        opts: "ro,credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,actimeo=0,nofail"
+        opts: "ro,credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,actimeo=0,nooplock,nofail"
         state: mounted
       loop: "{{ instances_with_445_open }}"
       become: true
