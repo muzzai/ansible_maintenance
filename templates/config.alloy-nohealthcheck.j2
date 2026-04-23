@@ -1,0 +1,156 @@
+prometheus.remote_write "default" {
+  endpoint {
+    url = "{{ alloy_metrics_remote_write_url }}"
+  }
+}
+
+discovery.ec2 "aws_instances" {
+  region = "{{ monitoring_region }}"
+}
+
+discovery.relabel "windows_exporter" {
+  targets = discovery.ec2.aws_instances.targets
+
+  rule {
+    source_labels = ["__meta_ec2_tag_Name"]
+    regex         = "^-.*"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_ec2_tag_Name"]
+    regex         = "^Alloy.*"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_ec2_instance_state"]
+    regex         = "stopped"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__meta_ec2_private_ip"]
+    target_label  = "__address__"
+    replacement   = "$1:9182"
+  }
+
+  rule {
+    source_labels = ["__meta_ec2_tag_Name"]
+    regex         = ".*\\(([^)]+)\\)\\s*$|(.+)"
+    target_label  = "instance"
+    replacement   = "$1$2"
+  }
+
+  rule {
+    source_labels = ["__meta_ec2_private_ip"]
+    target_label  = "private_ip"
+  }
+
+  rule {
+    target_label = "aws_region"
+    replacement  = "{{ monitoring_region }}"
+  }
+}
+
+prometheus.scrape "windows_exporter" {
+  targets         = discovery.relabel.windows_exporter.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "windows_exporter"
+  scrape_interval = "60s"
+  scrape_timeout  = "10s"
+}
+
+prometheus.scrape "monitoring_node_exporter" {
+  targets = [
+    {
+      "__address__" = "localhost:9100",
+      "instance"    = "{{ monitoring_region }}-exporter{% if deploy_environment == 'testing' %}_testing{% endif %}",
+      "aws_region"  = "{{ monitoring_region }}",
+    },
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "monitoring_node_exporter{% if deploy_environment == 'testing' %}_testing{% endif %}"
+  scrape_interval = "60s"
+  scrape_timeout  = "10s"
+}
+
+loki.write "default" {
+  endpoint {
+    url = "{{ alloy_logs_write_url }}"
+  }
+}
+
+local.file_match "iis_logs" {
+  path_targets = [
+{% for instance in alloy_log_sources | default([]) %}
+    {
+      "__path__" = "/mnt/{{ instance.name_suffix }}/W3SVC*/*.log",
+      "instance" = "{{ instance.name_suffix }}",
+      "job"      = "iis.logs",
+      "service"  = "{{ alloy_log_service_name }}",
+      "env"      = "{{ alloy_environment }}",
+      "region"   = "{{ monitoring_region }}",
+      "log_type" = "iis",
+    },
+{% endfor %}
+  ]
+  ignore_older_than = "48h"
+  sync_period       = "10s"
+}
+
+loki.process "iis_logs" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.drop {
+    expression = "^#"
+  }
+
+  stage.regex {
+    expression = "^(?P<datetime>\\d{4}-\\d{2}-\\d{2}\\s\\d{2}:\\d{2}:\\d{2})\\s(?P<s_ip>\\S+)\\s(?P<cs_method>\\S+)\\s(?P<cs_uri_stem>\\S+)\\s(?P<cs_uri_query>\\S+)\\s(?P<s_port>\\d+)\\s(?P<cs_username>\\S+)\\s(?P<c_ip>\\S+)\\s(?P<user_agent>[^\\s]+)\\s(?P<referer>\\S+)\\s(?P<sc_status>\\d+)\\s(?P<sc_substatus>\\d+)\\s(?P<sc_win32_status>\\d+)\\s(?P<time_taken>\\d+)$"
+  }
+
+  stage.timestamp {
+    source   = "datetime"
+    format   = "2006-01-02 15:04:05"
+    location = "UTC"
+  }
+
+  stage.regex {
+    source     = "sc_status"
+    expression = "^(?P<status_class>\\d)\\d\\d$"
+  }
+
+  stage.labels {
+    values = {
+      http_method  = "cs_method",
+      status       = "sc_status",
+      status_class = "status_class",
+    }
+  }
+
+  stage.structured_metadata {
+    values = {
+      server_ip    = "s_ip",
+      client_ip    = "c_ip",
+      uri_path     = "cs_uri_stem",
+      query_string = "cs_uri_query",
+      username     = "cs_username",
+      user_agent   = "user_agent",
+      referer      = "referer",
+      substatus    = "sc_substatus",
+      win32_status = "sc_win32_status",
+      time_taken   = "time_taken",
+    }
+  }
+}
+
+loki.source.file "iis_logs" {
+  targets                 = local.file_match.iis_logs.targets
+  forward_to              = [loki.process.iis_logs.receiver]
+
+  file_watch {
+    min_poll_frequency = "250ms"
+    max_poll_frequency = "10s"
+  }
+}
