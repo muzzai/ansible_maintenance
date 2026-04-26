@@ -29,7 +29,7 @@ discovery.relabel "windows_exporter" {
   }
 
   rule {
-    source_labels = ["__meta_ec2_tag_instance"]
+    source_labels = ["__meta_ec2_tag_Instance"]
     target_label  = "instance"
   }
 
@@ -76,7 +76,7 @@ discovery.relabel "blackbox_http_ssp" {
   }
 
   rule {
-    source_labels = ["__meta_ec2_tag_instance"]
+    source_labels = ["__meta_ec2_tag_Instance"]
     target_label  = "instance"
   }
 
@@ -122,7 +122,7 @@ discovery.relabel "blackbox_http_techportal" {
   }
 
   rule {
-    source_labels = ["__meta_ec2_tag_instance"]
+    source_labels = ["__meta_ec2_tag_Instance"]
     target_label  = "instance"
   }
 
@@ -168,7 +168,7 @@ discovery.relabel "blackbox_http_api" {
   }
 
   rule {
-    source_labels = ["__meta_ec2_tag_instance"]
+    source_labels = ["__meta_ec2_tag_Instance"]
     target_label  = "instance"
   }
 
