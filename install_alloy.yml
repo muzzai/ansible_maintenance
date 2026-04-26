@@ -6,7 +6,6 @@
     - defaults/install_scrapers_defaults.yml
     - defaults/install_alloy_defaults.yml
   vars:
-     vars:
     monitoring_region: >-
       {{
         aws_region | default(
