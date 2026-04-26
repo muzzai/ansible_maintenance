@@ -1,18 +1,3 @@
----
-- name: Gather data
-  hosts: localhost
-  gather_facts: false
-  tasks:
-    - name: Fail if monitoring region cannot be determined
-      when: monitoring_region == 'unknown'
-      ansible.builtin.fail:
-        msg: "Unable to determine monitoring region for host {{ inventory_hostname }}."
-
-    - name: Gather EC2 instances info
-      amazon.aws.ec2_instance_info:
-        region: "{{ monitoring_region }}"
-      register: ec2_info
-
 - name: Install and migrate monitoring stack to Grafana Alloy
   hosts: monitoring_hosts
   gather_facts: false
@@ -21,8 +6,21 @@
     - defaults/install_scrapers_defaults.yml
     - defaults/install_alloy_defaults.yml
   vars:
-    ec2_instances: "{{ hostvars['localhost']['ec2_info'].instances | default([]) }}"
+     vars:
+    monitoring_region: >-
+      {{
+        aws_region | default(
+          hostvars[inventory_hostname]['placement']['region'] | default(
+            hostvars[inventory_hostname]['ec2_region'] | default('unknown')
+          )
+        )
+      }}
   tasks:
+    - name: Fail if monitoring region cannot be determined
+      when: monitoring_region == 'unknown'
+      ansible.builtin.fail:
+        msg: "Unable to determine monitoring region for host {{ inventory_hostname }}."
+
     - name: Build connection details for monitoring hosts
       delegate_to: localhost
       block:
@@ -33,7 +31,6 @@
     - name: Install required packages
       ansible.builtin.package:
         name:
-          - nmap
           - cifs-utils
         state: present
       become: true
@@ -43,40 +40,35 @@
       changed_when: false
       ignore_errors: true
 
-    - name: Build list of instances with internal IP and parsed Name
+    - name: Gather EC2 instances info for current monitoring region
+      amazon.aws.ec2_instance_info:
+        region: "{{ monitoring_region }}"
+        filters:
+          "tag:MonitoringEnabled": "true"
+      register: ec2_info
+      delegate_to: localhost
+
+    - name: Build list of monitoring-enabled instances
       ansible.builtin.set_fact:
-        instances_with_445: >-
+        monitoring_enabled_instances: >-
           {{
-            instances_with_445 | default([]) + [
+            monitoring_enabled_instances | default([]) + [
               {
                 'id': item.instance_id,
-                'name': instance_name,
-                'name_suffix': name_suffix,
+                'instance_name': instance_name,
+                'mount_name': mount_name,
                 'internal_ip': item.network_interfaces[0].private_ip_address
               }
             ]
           }}
       vars:
-        instance_name: "{{ item.tags.Name | default('') }}"
-        name_suffix: >-
-          {{ instance_name | regex_replace('.*\(([^()]*)\)\s*$', '\1') if '(' in instance_name else '' }}
-      loop: "{{ ec2_instances }}"
+        instance_name: "{{ item.tags.instance | default('') }}"
+        mount_name: "{{ item.tags.Instance | default(instance_name) }}"
+      loop: "{{ ec2_info.instances | default([]) }}"
       when:
         - item.network_interfaces | length > 0
-        - item.tags.Name is defined
-
-    - name: Check if port 445 is open on each instance
-      ansible.builtin.command: "nmap -Pn -p 445 {{ item.internal_ip }}"
-      register: nmap_result
-      loop: "{{ instances_with_445 }}"
-      changed_when: false
-
-    - name: Filter instances where port 445 is open
-      ansible.builtin.set_fact:
-        instances_with_445_open: >-
-          {{
-            instances_with_445 | zip(nmap_result.results) | selectattr('1.stdout', 'search', '445/tcp open') | map(attribute='0') | list
-          }}
+        - item.tags.instance is defined
+        - item.tags.Instance is defined
 
     - name: Check Prometheus service status
       ansible.builtin.systemd:
@@ -144,49 +136,44 @@
 
     - name: Ensure CIFS mount directories exist
       ansible.builtin.file:
-        path: "/mnt/{{ item.name_suffix }}"
+        path: "/mnt/{{ item.mount_name }}"
         state: directory
         mode: "0755"
-      loop: "{{ instances_with_445_open }}"
+      loop: "{{ monitoring_enabled_instances | default([]) }}"
       failed_when: false
       become: true
 
     - name: Mount CIFS log shares
       ansible.posix.mount:
         src: "//{{ item.internal_ip }}/LogFiles"
-        path: "/mnt/{{ item.name_suffix }}"
+        path: "/mnt/{{ item.mount_name }}"
         fstype: cifs
         opts: "ro,credentials=/root/.smbcreds,vers=3.1.1,sec=ntlmssp,iocharset=utf8,_netdev,cache=none,actimeo=0,nolease,nofail"
         state: mounted
-      loop: "{{ instances_with_445_open }}"
+      loop: "{{ monitoring_enabled_instances | default([]) }}"
       become: true
       register: mount_results
       ignore_errors: true
 
     - name: Log failed mounts
       ansible.builtin.debug:
-        msg: "Failed to mount //{{ item.item.internal_ip }}/LogFiles on /mnt/{{ item.item.name_suffix }}: {{ item.msg | default('unknown error') }}"
+        msg: "Failed to mount //{{ item.item.internal_ip }}/LogFiles on /mnt/{{ item.item.mount_name }}: {{ item.msg | default('unknown error') }}"
       loop: "{{ mount_results.results | selectattr('failed', 'true') | list }}"
       loop_control:
-        label: "/mnt/{{ item.item.name_suffix }}"
+        label: "/mnt/{{ item.item.mount_name }}"
 
-    - name: Discover mounted log source directories
-      ansible.builtin.find:
-        paths: /mnt
-        file_type: directory
-        recurse: false
-      register: alloy_mount_dirs
-      become: true
-
-    - name: Log discovered log source directories
-      ansible.builtin.debug:
-        msg: "Discovered log source directory: {{ item.path }}"
-      loop: "{{ alloy_mount_dirs.files }}"
-
-    - name: Build Alloy log sources from mounted directories
+    - name: Build Alloy log sources from successful mounts
       ansible.builtin.set_fact:
-        alloy_log_sources: "{{ alloy_log_sources | default([]) + [{'name_suffix': item.path | basename}] }}"
-      loop: "{{ alloy_mount_dirs.files }}"
+        alloy_log_sources: >-
+          {{
+            alloy_log_sources | default([]) + [
+              {
+                'instance_name': item.item.instance_name,
+                'mount_name': item.item.mount_name
+              }
+            ]
+          }}
+      loop: "{{ mount_results.results | rejectattr('failed', 'defined') | list }}"
 
     - name: Deploy Alloy configuration
       ansible.builtin.template:

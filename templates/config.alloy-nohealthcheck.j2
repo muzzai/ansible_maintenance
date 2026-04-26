@@ -6,22 +6,15 @@ prometheus.remote_write "default" {
 
 discovery.ec2 "aws_instances" {
   region = "{{ monitoring_region }}"
+
+  filter {
+    name   = "tag:MonitoringEnabled"
+    values = ["true"]
+  }
 }
 
 discovery.relabel "windows_exporter" {
   targets = discovery.ec2.aws_instances.targets
-
-  rule {
-    source_labels = ["__meta_ec2_tag_Name"]
-    regex         = "^-.*"
-    action        = "drop"
-  }
-
-  rule {
-    source_labels = ["__meta_ec2_tag_Name"]
-    regex         = "^Alloy.*"
-    action        = "drop"
-  }
 
   rule {
     source_labels = ["__meta_ec2_instance_state"]
@@ -36,10 +29,8 @@ discovery.relabel "windows_exporter" {
   }
 
   rule {
-    source_labels = ["__meta_ec2_tag_Name"]
-    regex         = ".*\\(([^)]+)\\)\\s*$|(.+)"
+    source_labels = ["__meta_ec2_tag_instance"]
     target_label  = "instance"
-    replacement   = "$1$2"
   }
 
   rule {
@@ -85,8 +76,8 @@ local.file_match "iis_logs" {
   path_targets = [
 {% for instance in alloy_log_sources | default([]) %}
     {
-      "__path__" = "/mnt/{{ instance.name_suffix }}/W3SVC*/*.log",
-      "instance" = "{{ instance.name_suffix }}",
+  "__path__" = "/mnt/{{ instance.mount_name }}/W3SVC*/*.log",
+  "instance" = "{{ instance.instance_name }}",
       "job"      = "iis.logs",
       "service"  = "{{ alloy_log_service_name }}",
       "env"      = "{{ alloy_environment }}",
