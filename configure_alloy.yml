@@ -113,6 +113,13 @@
           }}
       loop: "{{ mount_results.results | rejectattr('failed', 'defined') | list }}"
 
+    - name: Log configured log sources
+      ansible.builtin.debug:
+        msg: "Configured log source for instance {{ item.instance_name }} at /mnt/{{ item.mount_name }}"
+      loop: "{{ alloy_log_sources | default([]) }}"
+      loop_control:
+        label: "{{ item.instance_name }}"
+
     - name: Deploy Alloy configuration
       ansible.builtin.template:
         src: templates/config.alloy.j2
