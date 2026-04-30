@@ -93,10 +93,17 @@
       register: mount_results
       ignore_errors: true
 
+    - name: Log All mounts
+      ansible.builtin.debug:
+        var: item
+      loop: "{{ mount_results.results | list }}"
+      loop_control:
+        label: "/mnt/{{ item.item.mount_name }}"
+
     - name: Log failed mounts
       ansible.builtin.debug:
         msg: "Failed to mount //{{ item.item.internal_ip }}/LogFiles on /mnt/{{ item.item.mount_name }}: {{ item.msg | default('unknown error') }}"
-      loop: "{{ mount_results.results | selectattr('failed', 'true') | list }}"
+      loop: "{{ mount_results.results | selectattr('failed') | list }}"
       loop_control:
         label: "/mnt/{{ item.item.mount_name }}"
 
@@ -111,14 +118,7 @@
               }
             ]
           }}
-      loop: "{{ mount_results.results | rejectattr('failed', 'defined') | list }}"
-
-    - name: Log configured log sources
-      ansible.builtin.debug:
-        msg: "Configured log source for instance {{ item.instance_name }} at /mnt/{{ item.mount_name }}"
-      loop: "{{ alloy_log_sources | default([]) }}"
-      loop_control:
-        label: "{{ item.instance_name }}"
+      loop: "{{ mount_results.results | rejectattr('failed') | list }}"
 
     - name: Deploy Alloy configuration
       ansible.builtin.template:
