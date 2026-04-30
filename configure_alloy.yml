@@ -60,7 +60,6 @@
         mount_name: "{{ item.tags.Instance | default(instance_name) }}"
       loop: "{{ ec2_info.instances | default([]) }}"
       when:
-        - item.network_interfaces | length > 0
         - item.tags.Instance is defined
 
     - name: Add smbcreds file for CIFS mounts
